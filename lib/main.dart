@@ -410,11 +410,13 @@ class _TelaLoginState extends State<TelaLogin> {
             ),
           ),
 
-          // 3. CONTEÚDO CENTRAL
+          // 3. CONTEÚDO CENTRAL (largura limitada na web para melhor visualização)
           Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: kIsWeb ? 420 : double.infinity),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // LOGO
@@ -516,6 +518,7 @@ class _TelaLoginState extends State<TelaLogin> {
                 ],
               ),
             ),
+          ),
           ),
         ],
       ),
@@ -629,11 +632,14 @@ class TelaHome extends StatelessWidget {
                   ),
                 ),
 
-                // Logo + chip de projeto
+                // Logo + chip de projeto (largura limitada na web)
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: kIsWeb ? 420 : double.infinity),
+                        child: Column(
                       children: [
                         const SizedBox(height: 24),
                         Image.asset(
@@ -709,10 +715,12 @@ class TelaHome extends StatelessWidget {
                         const SizedBox(height: 24),
                       ],
                     ),
+                    ),
                   ),
                 ),
+                ),
 
-                // Barra de navegação inferior (paleta verde, cinza, branco)
+                // Barra de navegação inferior (paleta verde, cinza, branco) (paleta verde, cinza, branco)
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
@@ -775,9 +783,12 @@ class TelaSettings extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: kIsWeb ? 480 : double.infinity),
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -832,6 +843,8 @@ class TelaSettings extends StatelessWidget {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }
@@ -880,14 +893,17 @@ class TelaSubMenu extends StatelessWidget {
         backgroundColor: _cinzaEscuro,
         foregroundColor: Colors.white,
       ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.5,
-        ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: kIsWeb ? 480 : double.infinity),
+          child: GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.5,
+            ),
         itemCount: itens.length,
         itemBuilder: (context, index) {
           final item = itens[index];
@@ -918,6 +934,8 @@ class TelaSubMenu extends StatelessWidget {
             ),
           );
         },
+      ),
+        ),
       ),
       bottomNavigationBar: _BarraInferiorSubTela(
         onSector: () => Navigator.pop(context),
@@ -1428,11 +1446,14 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _cancelar),
       ),
       backgroundColor: Colors.grey[900],
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: kIsWeb ? 560 : double.infinity),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             _dropdown('Sector Solicitante', _sectorSolicitante, _sectores, (v) => setState(() => _sectorSolicitante = v)),
             _campo('Solicitante', _solicitanteCtrl),
             _dropdown('Sector de Destino', _sectorDestino, _sectoresDestino, (v) => setState(() => _sectorDestino = v)),
@@ -1480,6 +1501,8 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
               ],
             ),
           ],
+        ),
+        ),
         ),
       ),
       bottomNavigationBar: _BarraInferiorSubTela(
@@ -1622,11 +1645,14 @@ class TelaDetalleDemanda extends StatelessWidget {
         actions: const [],
       ),
       backgroundColor: Colors.grey[900],
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: kIsWeb ? 560 : double.infinity),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             _filaDetalle('Local', (d['local'] ?? '').toString()),
             _filaDetalle('Sector Solicitante', (d['setor'] ?? d['sector'] ?? '').toString()),
             _filaDetalle('Solicitante', (d['solicitanteNome'] ?? d['solicitante'] ?? '').toString()),
@@ -1668,6 +1694,8 @@ class TelaDetalleDemanda extends StatelessWidget {
             ),
           ],
         ),
+        ),
+      ),
       ),
       bottomNavigationBar: _BarraInferiorSubTela(
         onSector: () => Navigator.popUntil(context, (r) => r.isFirst),
@@ -1799,7 +1827,10 @@ class _TelaDemandasState extends State<TelaDemandas> {
         showRefreshBadge: false,
       ),
       backgroundColor: Colors.grey[900],
-      body: FutureBuilder<List<Map<String, dynamic>>>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: kIsWeb ? 680 : double.infinity),
+          child: FutureBuilder<List<Map<String, dynamic>>>(
         future: _futureDemandas,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -1879,6 +1910,8 @@ class _TelaDemandasState extends State<TelaDemandas> {
             ],
           );
         },
+      ),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _abrirFormSolicitar(context),
@@ -2002,7 +2035,10 @@ class TelaGestion extends StatelessWidget {
         foregroundColor: Colors.white,
       ),
       backgroundColor: Colors.grey[900],
-      body: FutureBuilder<List<Map<String, dynamic>>>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: kIsWeb ? 680 : double.infinity),
+          child: FutureBuilder<List<Map<String, dynamic>>>(
         future: () {
           final perfil = (usuario['Perfil'] ?? usuario['perfil'] ?? usuario['Función'] ?? '').toString();
           final params = parametrosFetchPorPerfil(usuario);
@@ -2053,6 +2089,8 @@ class TelaGestion extends StatelessWidget {
             },
           );
         },
+      ),
+        ),
       ),
       bottomNavigationBar: _BarraInferiorSubTela(
         onSolicitar: () {
@@ -2121,7 +2159,10 @@ class _TelaAgendaState extends State<TelaAgenda> {
     return Scaffold(
       appBar: _appBarComBadge(context, 'AGENDA'),
       backgroundColor: Colors.grey[900],
-      body: FutureBuilder<List<dynamic>>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: kIsWeb ? 700 : double.infinity),
+          child: FutureBuilder<List<dynamic>>(
         future: Future.wait([
           () {
             final perfil = (widget.usuario['Perfil'] ?? widget.usuario['perfil'] ?? widget.usuario['Función'] ?? '').toString();
@@ -2248,6 +2289,8 @@ class _TelaAgendaState extends State<TelaAgenda> {
           );
         },
       ),
+        ),
+      ),
       bottomNavigationBar: _BarraInferiorSubTela(
         onSolicitar: () {
           Navigator.push(context, MaterialPageRoute(
@@ -2351,7 +2394,10 @@ class _TelaGraficoState extends State<TelaGrafico> {
         foregroundColor: Colors.white,
       ),
       backgroundColor: Colors.grey[900],
-      body: FutureBuilder<List<Map<String, dynamic>>>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: kIsWeb ? 700 : double.infinity),
+          child: FutureBuilder<List<Map<String, dynamic>>>(
         future: () {
           final params = parametrosFetchPorPerfil(widget.usuario);
           return fetchDemandas(widget.setorSelecionado, perfil: perfil, email: params.email, responsable: params.responsable);
@@ -2533,6 +2579,8 @@ class _TelaGraficoState extends State<TelaGrafico> {
             ),
           );
         },
+      ),
+        ),
       ),
       bottomNavigationBar: _BarraInferiorSubTela(
         onSolicitar: () {
