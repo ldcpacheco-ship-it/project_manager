@@ -117,6 +117,21 @@ function doGet(e) {
       var sector = e.parameter.sector || '';
       return getOcupacaoBrigadas(sector);
     }
+    // Flutter Web: usa GET com payload base64url para evitar CORS
+    if (action == 'salvarDemanda' || action == 'reprogramarDemanda' || action == 'crearDemandaCancelada') {
+      var payload = (e.parameter.payload || '').replace(/-/g, '+').replace(/_/g, '/');
+      if (!payload) return responderPadrao(false, "Falta payload", null);
+      try {
+        var decoded = Utilities.newBlob(Utilities.base64Decode(payload)).getDataAsString();
+        var data = JSON.parse(decoded);
+        var dados = data.dados || {};
+        if (action == 'salvarDemanda') return salvarDemanda(dados);
+        if (action == 'reprogramarDemanda') return reprogramarDemanda(dados);
+        if (action == 'crearDemandaCancelada') return crearDemandaCancelada(dados);
+      } catch (err) {
+        return responderPadrao(false, "Payload inválido: " + err.toString(), null);
+      }
+    }
 
     return responderPadrao(false, "Acción no válida", null);
   } catch (error) {
@@ -126,7 +141,13 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    var body = (e && e.postData) ? e.postData.contents : ((e && e.parameter) ? e.parameter.body : null);
+    // Aceita JSON de: postData.contents (text/plain, application/json) ou e.parameter.body (form-urlencoded, evita CORS no Flutter Web)
+    var body = null;
+    if (e && e.parameter && e.parameter.body) {
+      body = e.parameter.body;  // form-urlencoded - não dispara preflight CORS
+    } else if (e && e.postData && e.postData.contents) {
+      body = e.postData.contents;
+    }
     var data = body ? JSON.parse(body) : {};
     var action = data.action || (e && e.parameter ? e.parameter.action : null);
     if (action === 'crearDemanda' || action === 'salvarDemanda') {

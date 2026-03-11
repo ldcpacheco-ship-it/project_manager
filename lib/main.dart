@@ -57,13 +57,17 @@ Future<Map<String, dynamic>> _httpGet(String url) async {
   }
 }
 
-/// POST com Content-Type text/plain para evitar bloqueio CORS no Flutter Web.
-/// Google Apps Script não responde ao preflight OPTIONS que application/json dispara.
+/// Na Web, usa GET com base64 para evitar CORS. No mobile, usa POST com JSON.
 Future<Map<String, dynamic>> _httpPost(String url, Map<String, dynamic> body) async {
   try {
+    if (kIsWeb) {
+      final b64 = base64Url.encode(utf8.encode(json.encode(body)));
+      final getUrl = '$url?action=${Uri.encodeComponent((body['action'] ?? '').toString())}&payload=$b64';
+      return _httpGet(getUrl);
+    }
     final r = await http.post(
       Uri.parse(url),
-      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      headers: {'Content-Type': 'application/json'},
       body: json.encode(body),
     ).timeout(const Duration(seconds: 30));
     if (r.statusCode != 200) {
