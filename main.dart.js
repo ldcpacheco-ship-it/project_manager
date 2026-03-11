@@ -30630,7 +30630,7 @@ var $async$MB=A.K(function(a0,a1){if(a0===1){o.push(a1)
 s=p}for(;;)switch(s){case 0:p=4
 h=A.hw(a)
 g=t.N
-f=A.Q(["Content-Type","application/json"],g,g)
+f=A.Q(["Content-Type","text/plain;charset=utf-8"],g,g)
 s=7
 return A.O(A.bbP(h,B.d7.oF(b),f).zo(B.tx),$async$MB)
 case 7:n=a1
