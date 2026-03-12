@@ -578,7 +578,12 @@ class _TelaLoginState extends State<TelaLogin> {
                     height: 52,
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _realizarLogin,
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.green700),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.green700,
+                        elevation: 6,
+                        shadowColor: Colors.black54,
+                        side: const BorderSide(color: Colors.white70, width: 1.5),
+                      ),
                       child: _isLoading 
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : const Text('ACCEDER', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1)),
@@ -3113,10 +3118,10 @@ class _TelaMapaState extends State<TelaMapa> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: !_modoSatelite ? AppColors.green600 : AppColors.green700,
+                        color: !_modoSatelite ? AppColors.gray600 : AppColors.gray700,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Center(child: Text('Mapa', style: TextStyle(color: !_modoSatelite ? Colors.white : AppColors.green500))),
+                      child: Center(child: Text('Mapa', style: TextStyle(color: !_modoSatelite ? Colors.white : AppColors.gray400))),
                     ),
                   ),
                 ),
@@ -3127,10 +3132,10 @@ class _TelaMapaState extends State<TelaMapa> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: _modoSatelite ? AppColors.green600 : AppColors.green700,
+                        color: _modoSatelite ? AppColors.gray600 : AppColors.gray700,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Center(child: Text('Satélite', style: TextStyle(color: _modoSatelite ? Colors.white : AppColors.green500))),
+                      child: Center(child: Text('Satélite', style: TextStyle(color: _modoSatelite ? Colors.white : AppColors.gray400))),
                     ),
                   ),
                 ),
