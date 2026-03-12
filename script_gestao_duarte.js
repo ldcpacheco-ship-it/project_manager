@@ -61,6 +61,18 @@ function getCol(hdrMap, keys) {
   return -1;
 }
 
+/** Retorna o índice da coluna "Hora Necessaria" (nunca coluna 0 Carimbo). Fallback: coluna H = índice 7. */
+function getColHoraNecessaria(header) {
+  if (!header || !header.length) return 7;
+  for (var i = 0; i < header.length; i++) {
+    var n = String(header[i] || '').trim().toLowerCase();
+    if (!n || n.indexOf('carimbo') >= 0) continue;
+    if (n.indexOf('hora necessaria') >= 0 || n.indexOf('hora necesaria') >= 0 || n.indexOf('hora inicio') >= 0)
+      return i;
+  }
+  return 7;
+}
+
 // --- 1. PORTA DE ENTRADA (Comunicação com Flutter) ---
 
 function doGet(e) {
@@ -642,7 +654,8 @@ function salvarDemanda(dados) {
     var m = r.headerMap;
     var row = [];
     for (var c = 0; c < header.length; c++) row.push('');
-    // Coluna 0: Carimbo de data/hora do envio (vem do dispositivo)
+    // Valor do Carimbo (coluna A): data/hora do envio; será reaplicado ao final
+    var carimboValue = new Date();
     if (dados.carimbo && String(dados.carimbo).trim()) {
       try {
         var s = String(dados.carimbo).trim();
@@ -656,16 +669,11 @@ function salvarDemanda(dados) {
           var h = parseInt(horaPart[0] || '0', 10);
           var min = parseInt(horaPart[1] || '0', 10);
           var seg = parseInt(horaPart[2] || '0', 10);
-          row[0] = new Date(ano, mes, dia, h, min, seg);
-        } else {
-          row[0] = new Date();
+          carimboValue = new Date(ano, mes, dia, h, min, seg);
         }
-      } catch (_) {
-        row[0] = new Date();
-      }
-    } else {
-      row[0] = new Date();
+      } catch (_) {}
     }
+    row[0] = carimboValue;
     var colTema = getCol(m, ['tema']);
     if (colTema >= 0) row[colTema] = dados.tema || dados.tipoDemanda || dados.requerimiento || 'Nueva demanda';
     var colSec = getCol(m, ['sector']);
@@ -688,20 +696,10 @@ function salvarDemanda(dados) {
         else row[colFecha] = dados.fechaNecesaria;
       } catch (_) { row[colFecha] = dados.fechaNecesaria; }
     }
-    var colHora = getCol(m, ['hora']);
-    // Se colHora === 0, é Carimbo; buscar coluna "Hora Necessaria" explicitamente
-    if (colHora === 0) {
-      colHora = -1;
-      for (var hi = 0; hi < header.length; hi++) {
-        var hn = String(header[hi] || '').trim().toLowerCase();
-        if (hn.indexOf('carimbo') >= 0) continue;
-        if ((hn.indexOf('hora necessaria') >= 0 || hn.indexOf('hora necesaria') >= 0 || hn.indexOf('hora inicio') >= 0)) {
-          colHora = hi;
-          break;
-        }
-      }
-    }
-    if (colHora >= 0) row[colHora] = dados.horaInicio || '';
+    // Coluna "Hora Necessaria": valor do campo "Hora inicio" do formulário (chaves: horaInicio, horaNecesaria, hora)
+    var horaNecesariaVal = (dados.horaInicio || dados.horaNecesaria || dados.hora || '').toString().trim();
+    var colHoraNecessaria = getColHoraNecessaria(header);
+    row[colHoraNecessaria] = horaNecesariaVal;
     var colResp = getCol(m, ['responsable']);
     if (colResp >= 0) row[colResp] = dados.responsable || '';
     var colDur = getCol(m, ['duracion']);
@@ -716,7 +714,7 @@ function salvarDemanda(dados) {
     var colHoraFin = getCol(m, ['hora_fin']);
     if (colHoraFin >= 0 && dados.horaFin) row[colHoraFin] = dados.horaFin;
     var dataStr = '';
-    var horaStr = (dados.horaInicio || '').toString().trim();
+    var horaStr = horaNecesariaVal;
     if (horaStr.length >= 5) horaStr = horaStr.substring(0, 5);
     else if (horaStr.length === 4 && horaStr.indexOf(':') > 0) horaStr = '0' + horaStr;
     try {
@@ -736,6 +734,8 @@ function salvarDemanda(dados) {
     if (ocupacao >= 4) {
       return responderPadrao(false, "Límite de 4 brigadas alcanzado para este horario.", null);
     }
+    // Coluna A ("Carimbo de data/hora"): sempre data/hora do envio (explícito)
+    row[0] = carimboValue;
     sheet.appendRow(row);
     return responderPadrao(true, "Demanda creada", null);
   } catch (err) {

@@ -1250,6 +1250,7 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
     setState(() => _enviando = true);
     final now = DateTime.now();
     final carimbo = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+    final horaInicioVal = _horaInicioCtrl.text.trim();
     final dados = <String, dynamic>{
       'carimbo': carimbo,
       'sectorSolicitante': _sectorSolicitante ?? '',
@@ -1260,7 +1261,8 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
       'coordenadas': _controllerCoordenadas.text.trim(),
       'requerimiento': _requerimientoCtrl.text.trim(),
       'fechaNecesaria': _fechaNecesariaCtrl.text.trim(),
-      'horaInicio': _horaInicioCtrl.text.trim(),
+      'horaInicio': horaInicioVal,
+      'horaNecesaria': horaInicioVal,
       'status': widget.esReprogramacion ? '' : 'No Programada',
       'horaFin': _calcularHoraFin(),
       'responsable': isPerfilGestion(widget.usuario) ? _responsavelCtrl.text.trim() : '',
