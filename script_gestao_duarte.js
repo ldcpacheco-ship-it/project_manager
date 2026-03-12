@@ -115,8 +115,29 @@ function getDadosVal(key, dados) {
 // --- 1. PORTA DE ENTRADA (Comunicação com Flutter) ---
 
 function doGet(e) {
-  var action = (e && e.parameter) ? e.parameter.action : null;
+  var param = e && e.parameter ? e.parameter : {};
+  var action = param.action != null ? String(param.action).trim() : null;
+  if (Array.isArray(action)) action = (action[0] || '').trim();
   try {
+    // Si hay payload, intentar despachar por decoded.action (no depender del action en la URL)
+    if (param.payload) {
+      var payloadStr = (param.payload || '').replace(/-/g, '+').replace(/_/g, '/');
+      if (payloadStr) {
+        try {
+          var decoded = JSON.parse(Utilities.newBlob(Utilities.base64Decode(payloadStr)).getDataAsString());
+          var act = (decoded.action || action || '').toString().trim();
+          if (act === 'solicitarResetSenha') {
+            return solicitarResetSenha((decoded.email || '').toString().trim().toLowerCase());
+          }
+          if (act === 'confirmarResetSenha') {
+            return confirmarResetSenha(decoded.email || '', decoded.codigo || '', decoded.novaSenha || '');
+          }
+          if (act === 'alterarSenha') {
+            return alterarSenha(decoded.email || '', decoded.senhaAtual || '', decoded.novaSenha || '');
+          }
+        } catch (err) {}
+      }
+    }
     if (action == 'login') {
       var email = e.parameter.email || e.parameter.correo;
       var senha = e.parameter.password || e.parameter.senha;
@@ -289,6 +310,181 @@ function loginUsuario(emailBuscado, senhaRecebida) {
     }
   }
   return responderPadrao(false, "Usuario no encontrado en la base de datos.", null);
+}
+
+/** Altera a senha do usuário na aba Usuarios. email, senhaAtual (confirmação), novaSenha. */
+function alterarSenha(emailBuscado, senhaAtual, novaSenha) {
+  var emailNorm = emailBuscado ? String(emailBuscado).trim().toLowerCase() : '';
+  var atual = senhaAtual ? String(senhaAtual).trim() : '';
+  var nova = novaSenha ? String(novaSenha).trim() : '';
+  if (!emailNorm) return responderPadrao(false, "No se ha indicado el correo.", null);
+  if (!atual) return responderPadrao(false, "Indique la contraseña actual.", null);
+  if (!nova) return responderPadrao(false, "Indique la nueva contraseña.", null);
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Usuarios") || ss.getSheetByName("Usuários");
+  if (!sheet) {
+    for (var si = 0; si < ss.getSheets().length; si++) {
+      if (ss.getSheets()[si].getName().toLowerCase().indexOf("usuario") >= 0) {
+        sheet = ss.getSheets()[si];
+        break;
+      }
+    }
+  }
+  if (!sheet) return responderPadrao(false, "Hoja 'Usuarios' no encontrada en la base de datos.", null);
+
+  var data = sheet.getDataRange().getValues();
+  var header = data[0];
+  var colEmail = -1;
+  var colSenha = -1;
+  for (var h = 0; h < header.length; h++) {
+    var nomeCol = String(header[h] || '').trim().toLowerCase();
+    if (colEmail === -1 && (nomeCol === 'email' || nomeCol === 'correo' || nomeCol.indexOf('email') >= 0 || nomeCol.indexOf('correo') >= 0)) colEmail = h;
+    if (colSenha === -1 && (nomeCol === 'senha' || nomeCol === 'password' || nomeCol === 'contraseña' || nomeCol.indexOf('senha') >= 0 || nomeCol.indexOf('password') >= 0)) colSenha = h;
+  }
+  if (colEmail === -1) return responderPadrao(false, "Columna Email no encontrada.", null);
+  if (colSenha === -1) return responderPadrao(false, "Columna Contraseña no encontrada.", null);
+
+  for (var i = 1; i < data.length; i++) {
+    var emailCelula = String(data[i][colEmail] || '').toLowerCase().trim();
+    if (emailCelula !== emailNorm) continue;
+    var senhaCelula = String(data[i][colSenha] || '').trim();
+    if (senhaCelula !== atual) return responderPadrao(false, "Contraseña actual incorrecta.", null);
+    var rowSheet = i + 1;
+    sheet.getRange(rowSheet, colSenha + 1).setValue(nova);
+    return responderPadrao(true, "Contraseña actualizada correctamente.", null);
+  }
+  return responderPadrao(false, "Usuario no encontrado.", null);
+}
+
+// --- Recuperación de contraseña (código por correo) ---
+var RESET_SHEET_NAME = 'ResetSenha';
+var RESET_CODE_VALID_MINUTES = 15;
+
+function getOrCreateResetSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(RESET_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(RESET_SHEET_NAME);
+    sheet.appendRow(['Email', 'Codigo', 'FechaHora']);
+    sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+/** Solicita restablecer contraseña: verifica email en Usuarios, genera código, guarda en ResetSenha, envía correo. */
+function solicitarResetSenha(emailBuscado) {
+  var emailNorm = emailBuscado ? String(emailBuscado).trim().toLowerCase() : '';
+  if (!emailNorm) return responderPadrao(false, "Indique su correo electrónico.", null);
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetUsu = ss.getSheetByName("Usuarios") || ss.getSheetByName("Usuários");
+  if (!sheetUsu) {
+    for (var si = 0; si < ss.getSheets().length; si++) {
+      if (ss.getSheets()[si].getName().toLowerCase().indexOf("usuario") >= 0) {
+        sheetUsu = ss.getSheets()[si];
+        break;
+      }
+    }
+  }
+  if (!sheetUsu) return responderPadrao(false, "Hoja Usuarios no encontrada.", null);
+
+  var data = sheetUsu.getDataRange().getValues();
+  var header = data[0];
+  var colEmail = -1;
+  for (var h = 0; h < header.length; h++) {
+    var n = String(header[h] || '').trim().toLowerCase();
+    if (n === 'email' || n === 'correo' || n.indexOf('email') >= 0 || n.indexOf('correo') >= 0) {
+      colEmail = h;
+      break;
+    }
+  }
+  if (colEmail === -1) return responderPadrao(false, "Columna de correo no encontrada.", null);
+
+  var existe = false;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][colEmail] || '').toLowerCase().trim() === emailNorm) {
+      existe = true;
+      break;
+    }
+  }
+  if (!existe) return responderPadrao(false, "No hay ninguna cuenta con ese correo.", null);
+
+  var codigo = String(Math.floor(100000 + Math.random() * 900000));
+  var ahora = new Date();
+  var sheetReset = getOrCreateResetSheet();
+  sheetReset.appendRow([emailNorm, codigo, ahora]);
+
+  try {
+    MailApp.sendEmail({
+      to: emailNorm,
+      subject: "Gestión Duarte – Código para restablecer contraseña",
+      body: "Su código de verificación es: " + codigo + "\n\nVálido por " + RESET_CODE_VALID_MINUTES + " minutos.\n\nSi no solicitó este correo, ignore este mensaje."
+    });
+  } catch (err) {
+    sheetReset.getRange(sheetReset.getLastRow(), 1, sheetReset.getLastRow(), 3).clearContent();
+    return responderPadrao(false, "No se pudo enviar el correo. Verifique la configuración del script.", null);
+  }
+  return responderPadrao(true, "Si el correo está registrado, recibirá un código por correo electrónico.", null);
+}
+
+/** Confirma restablecimiento: valida código y actualiza contraseña en Usuarios. */
+function confirmarResetSenha(emailBuscado, codigo, novaSenha) {
+  var emailNorm = emailBuscado ? String(emailBuscado).trim().toLowerCase() : '';
+  var cod = String(codigo || '').trim();
+  var nova = String(novaSenha || '').trim();
+  if (!emailNorm) return responderPadrao(false, "Indique su correo.", null);
+  if (!cod) return responderPadrao(false, "Indique el código recibido por correo.", null);
+  if (!nova) return responderPadrao(false, "Indique la nueva contraseña.", null);
+
+  var sheetReset = getOrCreateResetSheet();
+  var dataReset = sheetReset.getDataRange().getValues();
+  var colCodigo = 1;
+  var colFecha = 2;
+  var rowValida = -1;
+  var ahora = new Date();
+  var limiteMs = RESET_CODE_VALID_MINUTES * 60 * 1000;
+
+  for (var i = 1; i < dataReset.length; i++) {
+    if (String(dataReset[i][0] || '').toLowerCase().trim() !== emailNorm) continue;
+    if (String(dataReset[i][colCodigo] || '').trim() !== cod) continue;
+    var fecha = dataReset[i][colFecha];
+    if (fecha && (ahora - new Date(fecha)) > limiteMs) continue;
+    rowValida = i + 1;
+    break;
+  }
+  if (rowValida < 0) return responderPadrao(false, "Código incorrecto o expirado. Solicite uno nuevo.", null);
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetUsu = ss.getSheetByName("Usuarios") || ss.getSheetByName("Usuários");
+  if (!sheetUsu) {
+    for (var si = 0; si < ss.getSheets().length; si++) {
+      if (ss.getSheets()[si].getName().toLowerCase().indexOf("usuario") >= 0) {
+        sheetUsu = ss.getSheets()[si];
+        break;
+      }
+    }
+  }
+  if (!sheetUsu) return responderPadrao(false, "Hoja Usuarios no encontrada.", null);
+
+  var data = sheetUsu.getDataRange().getValues();
+  var header = data[0];
+  var colEmail = -1;
+  var colSenha = -1;
+  for (var h = 0; h < header.length; h++) {
+    var n = String(header[h] || '').trim().toLowerCase();
+    if (colEmail < 0 && (n === 'email' || n === 'correo' || n.indexOf('email') >= 0)) colEmail = h;
+    if (colSenha < 0 && (n === 'senha' || n === 'password' || n === 'contraseña' || n.indexOf('senha') >= 0 || n.indexOf('password') >= 0)) colSenha = h;
+  }
+  if (colEmail < 0 || colSenha < 0) return responderPadrao(false, "Columnas de correo o contraseña no encontradas.", null);
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][colEmail] || '').toLowerCase().trim() !== emailNorm) continue;
+    sheetUsu.getRange(i + 1, colSenha + 1).setValue(nova);
+    sheetReset.getRange(rowValida, 1, rowValida, 3).clearContent();
+    return responderPadrao(true, "Contraseña restablecida correctamente. Ya puede iniciar sesión.", null);
+  }
+  return responderPadrao(false, "Usuario no encontrado.", null);
 }
 
 // Diagnóstico: retorna informações para identificar o problema

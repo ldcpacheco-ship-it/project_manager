@@ -165,6 +165,37 @@ Future<bool> crearDemandaCancelada(Map<String, dynamic> dados) async {
   return res['success'] == true;
 }
 
+/// Altera a senha do usuário na aba Usuarios (email + senha atual + nova senha).
+Future<Map<String, dynamic>> alterarSenha(String email, String senhaAtual, String novaSenha) async {
+  final res = await _httpPost(kScriptUrl, {
+    'action': 'alterarSenha',
+    'email': email,
+    'senhaAtual': senhaAtual,
+    'novaSenha': novaSenha,
+  });
+  return {'ok': res['success'] == true, 'message': (res['message'] ?? '').toString()};
+}
+
+/// Solicita envío de código de recuperación al correo (si existe en Usuarios).
+Future<Map<String, dynamic>> solicitarResetSenha(String email) async {
+  final res = await _httpPost(kScriptUrl, {
+    'action': 'solicitarResetSenha',
+    'email': email.trim().toLowerCase(),
+  });
+  return {'ok': res['success'] == true, 'message': (res['message'] ?? '').toString()};
+}
+
+/// Confirma restablecimiento con código recibido por correo y nueva contraseña.
+Future<Map<String, dynamic>> confirmarResetSenha(String email, String codigo, String novaSenha) async {
+  final res = await _httpPost(kScriptUrl, {
+    'action': 'confirmarResetSenha',
+    'email': email.trim().toLowerCase(),
+    'codigo': codigo.trim(),
+    'novaSenha': novaSenha.trim(),
+  });
+  return {'ok': res['success'] == true, 'message': (res['message'] ?? '').toString()};
+}
+
 Future<List<String>> fetchLocais() async {
   final res = await _httpGet("$kScriptUrl?action=getLocais");
   if (res['success'] != true) return ['Ponte Jarabacoa', 'Jaguey', 'Retorno San Francisco', 'Marginal San Francisco', 'Otro'];
@@ -402,7 +433,7 @@ class _TelaLoginState extends State<TelaLogin> {
           // 2. MÁSCARA DE LEGIBILIDADE
           Positioned.fill(
             child: Container(
-              color: isDark ? Colors.black.withOpacity(0.75) : Colors.black.withOpacity(0.45),
+              color: isDark ? Colors.black.withOpacity(0.55) : Colors.black.withOpacity(0.25),
             ),
           ),
 
@@ -504,7 +535,14 @@ class _TelaLoginState extends State<TelaLogin> {
 
                   // LINKS ADICIONAIS
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TelaRecuperarSenha(),
+                        ),
+                      );
+                    },
                     child: const Text('¿Olvidaste tu contraseña?', style: TextStyle(color: Colors.white, decoration: TextDecoration.underline)),
                   ),
                   TextButton(
@@ -517,6 +555,202 @@ class _TelaLoginState extends State<TelaLogin> {
           ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// --- TelaRecuperarSenha: restablecer contraseña por código enviado al correo ---
+
+class TelaRecuperarSenha extends StatefulWidget {
+  const TelaRecuperarSenha({super.key});
+
+  @override
+  State<TelaRecuperarSenha> createState() => _TelaRecuperarSenhaState();
+}
+
+class _TelaRecuperarSenhaState extends State<TelaRecuperarSenha> {
+  static const Color _verde = Color(0xFF1E5631);
+  final _emailCtrl = TextEditingController();
+  final _codigoCtrl = TextEditingController();
+  final _novaSenhaCtrl = TextEditingController();
+  final _confirmarCtrl = TextEditingController();
+  bool _obscureNova = true;
+  bool _obscureConfirmar = true;
+  bool _enviando = false;
+  bool _paso2 = false;
+  String _emailEnviado = '';
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _codigoCtrl.dispose();
+    _novaSenhaCtrl.dispose();
+    _confirmarCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _enviarCodigo() async {
+    final email = _emailCtrl.text.trim().toLowerCase();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Indique su correo electrónico.')));
+      return;
+    }
+    setState(() => _enviando = true);
+    final res = await solicitarResetSenha(email);
+    setState(() => _enviando = false);
+    if (!mounted) return;
+    if (res['ok'] == true) {
+      _mostrarFeedback(context, res['message']?.toString() ?? 'Revisa tu correo.', sucesso: true);
+      setState(() {
+        _paso2 = true;
+        _emailEnviado = email;
+      });
+    } else {
+      _mostrarFeedback(context, res['message']?.toString() ?? 'Error al enviar.', sucesso: false);
+    }
+  }
+
+  Future<void> _restablecer() async {
+    final codigo = _codigoCtrl.text.trim();
+    final nova = _novaSenhaCtrl.text.trim();
+    final conf = _confirmarCtrl.text.trim();
+    if (codigo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Indique el código recibido por correo.')));
+      return;
+    }
+    if (nova.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Indique la nueva contraseña.')));
+      return;
+    }
+    if (nova != conf) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La contraseña y la confirmación no coinciden.')));
+      return;
+    }
+    setState(() => _enviando = true);
+    final res = await confirmarResetSenha(_emailEnviado, codigo, nova);
+    setState(() => _enviando = false);
+    if (!mounted) return;
+    if (res['ok'] == true) {
+      _mostrarFeedback(context, res['message']?.toString() ?? 'Contraseña restablecida.', sucesso: true);
+      Navigator.pop(context);
+    } else {
+      _mostrarFeedback(context, res['message']?.toString() ?? 'Error.', sucesso: false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.grey[900] : Colors.grey[200];
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        title: const Text('Restablecer contraseña', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        backgroundColor: _verde,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: kIsWeb ? 420 : double.infinity),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!_paso2) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Indique el correo electrónico de su cuenta. Si existe, recibirá un código de verificación.',
+                    style: TextStyle(fontSize: 15, color: isDark ? Colors.white70 : Colors.black87),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'Correo electrónico',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _enviando ? null : _enviarCodigo,
+                      child: _enviando
+                          ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Enviar código'),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Código enviado a $_emailEnviado. Introdúzcalo abajo con su nueva contraseña.',
+                    style: TextStyle(fontSize: 15, color: isDark ? Colors.white70 : Colors.black87),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _codigoCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Código de 6 dígitos',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.pin_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _novaSenhaCtrl,
+                    obscureText: _obscureNova,
+                    decoration: InputDecoration(
+                      labelText: 'Nueva contraseña',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureNova ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscureNova = !_obscureNova),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _confirmarCtrl,
+                    obscureText: _obscureConfirmar,
+                    decoration: InputDecoration(
+                      labelText: 'Confirmar nueva contraseña',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirmar ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscureConfirmar = !_obscureConfirmar),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _enviando ? null : _restablecer,
+                      child: _enviando
+                          ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Restablecer contraseña'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => setState(() => _paso2 = false),
+                    child: const Text('Usar otro correo'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -546,12 +780,13 @@ class TelaHome extends StatelessWidget {
     final perfil = usuario['Perfil'] ?? usuario['perfil'] ?? usuario['Función'] ?? 'Usuario';
     final empresa = usuario['Empresa'] ?? usuario['Area'] ?? usuario['area'] ?? 'Autopista Duarte';
     final proyecto = usuario['Proyecto'] ?? 'Autopista Duarte';
+    final isDark = themeMode == ThemeMode.dark || (themeMode == ThemeMode.system && MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
     return Scaffold(
       backgroundColor: Colors.grey[900],
       body: Stack(
         children: [
-          // Imagem de fundo (grúas)
+          // Imagem de fundo (grúas) — mesma opacidade da máscara que na TelaLogin
           Positioned.fill(
             child: Image.asset(
               'assets/backgrounds/background1.png',
@@ -561,17 +796,7 @@ class TelaHome extends StatelessWidget {
           ),
           Positioned.fill(
             child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.5),
-                    Colors.black.withOpacity(0.8),
-                    Colors.black,
-                  ],
-                ),
-              ),
+              color: isDark ? Colors.black.withOpacity(0.55) : Colors.black.withOpacity(0.25),
             ),
           ),
 
@@ -716,9 +941,9 @@ class TelaHome extends StatelessWidget {
                 ),
                 ),
 
-                // Barra de navegação inferior (paleta verde, cinza, branco) (paleta verde, cinza, branco)
+                // Barra de navegação inferior: Ajustes e Ayuda
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 2),
                   decoration: BoxDecoration(
                     color: _cinzaEscuro,
                     border: Border(top: BorderSide(color: Colors.grey[700]!)),
@@ -726,21 +951,39 @@ class TelaHome extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _NavIcon(icon: Icons.dashboard_rounded, selected: true),
-                      Icon(Icons.account_tree_rounded, color: Colors.grey[500], size: 26),
                       IconButton(
-                        icon: Icon(Icons.settings_rounded, color: Colors.grey[500]),
+                        icon: Icon(Icons.settings_rounded, color: Colors.grey[400]),
                         onPressed: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => TelaSettings(themeMode: themeMode, onSetThemeMode: onSetThemeMode),
+                              builder: (_) => TelaSettings(themeMode: themeMode, onSetThemeMode: onSetThemeMode, usuario: usuario),
                             ),
                           );
                         },
                         tooltip: 'Ajustes',
                       ),
-                      Icon(Icons.help_outline_rounded, color: Colors.grey[500], size: 26),
+                      IconButton(
+                        icon: Icon(Icons.help_outline_rounded, color: Colors.grey[400]),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Ayuda'),
+                              content: const Text(
+                                'Gestión Duarte – App de solicitudes y demandas.\n\nUse los botones de sector para acceder a las funciones.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        tooltip: 'Ayuda',
+                      ),
                     ],
                   ),
                 ),
@@ -753,20 +996,76 @@ class TelaHome extends StatelessWidget {
   }
 }
 
-// --- TelaSettings: Configurações (inclui modo claro/escuro) ---
+// --- TelaSettings: Configuración (modo claro/oscuro + cambiar contraseña) ---
 
-class TelaSettings extends StatelessWidget {
+class TelaSettings extends StatefulWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onSetThemeMode;
+  final Map<String, dynamic>? usuario;
 
-  const TelaSettings({super.key, required this.themeMode, required this.onSetThemeMode});
+  const TelaSettings({super.key, required this.themeMode, required this.onSetThemeMode, this.usuario});
 
+  @override
+  State<TelaSettings> createState() => _TelaSettingsState();
+}
+
+class _TelaSettingsState extends State<TelaSettings> {
   static const Color _verde = Color(0xFF1E5631);
+  final _senhaAtualCtrl = TextEditingController();
+  final _novaSenhaCtrl = TextEditingController();
+  final _confirmarSenhaCtrl = TextEditingController();
+  bool _obscureAtual = true;
+  bool _obscureNova = true;
+  bool _obscureConfirmar = true;
+  bool _enviando = false;
+
+  @override
+  void dispose() {
+    _senhaAtualCtrl.dispose();
+    _novaSenhaCtrl.dispose();
+    _confirmarSenhaCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _alterarSenha() async {
+    final email = (widget.usuario?['Email'] ?? widget.usuario?['email'] ?? widget.usuario?['Correo'] ?? '').toString().trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo identificar su correo.')));
+      return;
+    }
+    final atual = _senhaAtualCtrl.text.trim();
+    final nova = _novaSenhaCtrl.text.trim();
+    final confirmar = _confirmarSenhaCtrl.text.trim();
+    if (atual.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Indique la contraseña actual.')));
+      return;
+    }
+    if (nova.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Indique la nueva contraseña.')));
+      return;
+    }
+    if (nova != confirmar) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La nueva contraseña y la confirmación no coinciden.')));
+      return;
+    }
+    setState(() => _enviando = true);
+    final res = await alterarSenha(email, atual, nova);
+    setState(() => _enviando = false);
+    if (!mounted) return;
+    if (res['ok'] == true) {
+      _mostrarFeedback(context, res['message']?.toString() ?? 'Contraseña actualizada.', sucesso: true);
+      _senhaAtualCtrl.clear();
+      _novaSenhaCtrl.clear();
+      _confirmarSenhaCtrl.clear();
+    } else {
+      _mostrarFeedback(context, res['message']?.toString() ?? 'Error al actualizar.', sucesso: false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = Theme.of(context).brightness == Brightness.dark ? Colors.grey[900] : Colors.grey[200];
+    final bgColor = isDark ? Colors.grey[900] : Colors.grey[200];
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -785,60 +1084,148 @@ class TelaSettings extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      isDark ? Icons.dark_mode : Icons.light_mode,
-                      color: _verde,
-                      size: 24,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
                       children: [
+                        Icon(
+                          isDark ? Icons.dark_mode : Icons.light_mode,
+                          color: _verde,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Modo oscuro',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                            Text(
+                              isDark ? 'Activado' : 'Desactivado',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Switch(
+                      value: isDark,
+                      onChanged: (v) => widget.onSetThemeMode(v ? ThemeMode.dark : ThemeMode.light),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.lock_reset, color: _verde, size: 24),
+                        const SizedBox(width: 12),
                         Text(
-                          'Modo oscuro',
+                          'Cambiar contraseña',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: Theme.of(context).textTheme.bodyLarge?.color,
                           ),
                         ),
-                        Text(
-                          isDark ? 'Activado' : 'Desactivado',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
-                          ),
-                        ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _senhaAtualCtrl,
+                      obscureText: _obscureAtual,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña actual',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureAtual ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => _obscureAtual = !_obscureAtual),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _novaSenhaCtrl,
+                      obscureText: _obscureNova,
+                      decoration: InputDecoration(
+                        labelText: 'Nueva contraseña',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureNova ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => _obscureNova = !_obscureNova),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _confirmarSenhaCtrl,
+                      obscureText: _obscureConfirmar,
+                      decoration: InputDecoration(
+                        labelText: 'Confirmar nueva contraseña',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureConfirmar ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => _obscureConfirmar = !_obscureConfirmar),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _verde,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: _enviando ? null : _alterarSenha,
+                        child: _enviando
+                            ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text('Actualizar contraseña'),
+                      ),
                     ),
                   ],
                 ),
-                Switch(
-                  value: isDark,
-                  onChanged: (v) => onSetThemeMode(v ? ThemeMode.dark : ThemeMode.light),
-                ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
           ),
         ),
       ),
@@ -2775,22 +3162,6 @@ class _TelaMapaState extends State<TelaMapa> {
           builder: (_) => TelaMapa(usuario: widget.usuario, setorSelecionado: widget.setorSelecionado),
         )),
       ),
-    );
-  }
-}
-
-class _NavIcon extends StatelessWidget {
-  final IconData icon;
-  final bool selected;
-
-  const _NavIcon({required this.icon, this.selected = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(
-      icon,
-      color: selected ? const Color(0xFF4C9A2A) : Colors.grey[500],
-      size: 28,
     );
   }
 }
