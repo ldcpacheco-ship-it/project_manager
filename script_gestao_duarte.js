@@ -22,9 +22,9 @@ var COL_ALIASES = {
   duracion: ['duracion estimada', 'duración', 'duracion'],
   status: ['estatus actual', 'status', 'estado', 'estatus'],
   brigada: ['brigada topografica', 'brigada', 'equipe'],
-  local: ['local', 'ubicación', 'ubicacion'],
+  local: ['local', 'localización', 'localizacion', 'ubicación', 'ubicacion', 'lugar', 'ubicacion del servicio', 'dirección', 'direccion'],
   prioridad: ['prioridad', 'prioridade', 'rank', 'orden'],
-  tipo: ['tipo de demanda', 'tipo', 'tipo demanda'],
+  tipo: ['tipo de demanda', 'tipo demanda', 'tipo'],
   coordenada: ['coordenadas', 'coordenada', 'coord'],
   hora_fin: ['hora fin', 'hora término', 'horafin'],
   id_anterior: ['id anterior', 'referencia', 'reprogramada']
@@ -42,6 +42,8 @@ function buildHeaderMap(header) {
           if (n.indexOf(COL_ALIASES[key][a]) >= 0 || COL_ALIASES[key][a].indexOf(n) >= 0) {
             // Evitar que "Carimbo de data/hora" (col. A) seja mapeada como "Hora Necessaria"
             if (key === 'hora' && n.indexOf('carimbo') >= 0) break;
+            // Nunca mapear "Estatus Técnico" ou "Situación" como status; usar apenas "Estatus Actual"
+            if (key === 'status' && (n.indexOf('técnico') >= 0 || n.indexOf('tecnico') >= 0 || n.indexOf('situación') >= 0 || n.indexOf('situacion') >= 0)) break;
             if (m[key] === undefined) m[key] = h;
             break;
           }
@@ -161,6 +163,10 @@ function doGet(e) {
       var perfil = e.parameter.perfil || '';
       var responsable = e.parameter.responsable || e.parameter.nombre || '';
       return getDemandas(sector, email, perfil, responsable);
+    }
+    if (action == 'getDemandasDebug') {
+      var sector = e.parameter.sector || 'Topografía';
+      return getDemandasDebug(sector);
     }
     if (action == 'getDemandasGestion') {
       var sector = e.parameter.sector || '';
@@ -638,6 +644,49 @@ function getDemandasSheet() {
   return { data: data, header: header, headerMap: headerMap };
 }
 
+/** Diagnóstico: retorna headers, mapeamento e amostra de dados para verificar por que DEMANDAS não mostra itens */
+function getDemandasDebug(sector) {
+  var r = getDemandasSheet();
+  var diag = {
+    sheetFound: !!r.header.length,
+    headerRow: HEADER_ROW,
+    dataStartRow: DATA_START_ROW,
+    totalDataRows: r.data ? r.data.length : 0,
+    headers: r.header || [],
+    headerMap: r.headerMap || {},
+    colSector: getCol(r.headerMap, ['sector']),
+    colTema: getCol(r.headerMap, ['tema']),
+    sectorBuscado: sector || 'Topografía',
+    amostraSector: [],
+    totalPassariaFiltro: 0,
+    erro: null
+  };
+  if (!r.data || !r.data.length) {
+    diag.erro = 'Nenhum dado na planilha ou sheet não encontrada. Verifique: (1) Nome da aba = "Respuestas del Form" (2) HEADER_ROW=6 é a linha dos cabeçalhos? (3) Dados a partir da linha 7?';
+    return responderPadrao(true, 'Debug', diag);
+  }
+  var m = r.headerMap;
+  var data = r.data;
+  var colSector = getCol(m, ['sector']);
+  if (colSector < 0) colSector = getCol(m, ['tema']);
+  var colEmail = getCol(m, ['email_solicitante']);
+  var colResp = getCol(m, ['responsable']);
+  var passam = 0;
+  for (var i = 0; i < Math.min(10, data.length); i++) {
+    var rowSector = colSector >= 0 ? String(data[i][colSector] || '').toLowerCase() : '';
+    var pasa = !sector || rowSector.indexOf((sector || '').toLowerCase()) >= 0;
+    if (i < 5) diag.amostraSector.push({ linha: DATA_START_ROW + i, valorSector: rowSector || '(vazio)', pasa: pasa });
+    if (pasa) passam++;
+  }
+  for (var i = 5; i < data.length; i++) {
+    var rowSector = colSector >= 0 ? String(data[i][colSector] || '').toLowerCase() : '';
+    if (!sector || rowSector.indexOf((sector || '').toLowerCase()) >= 0) passam++;
+  }
+  diag.totalPassariaFiltro = passam;
+  diag.dica = 'O valor na coluna Sector (índice ' + colSector + ') deve conter "' + (sector || 'Topografía') + '". Se HEADER_ROW=6 não for a linha dos títulos, altere no script.';
+  return responderPadrao(true, 'Debug', diag);
+}
+
 function isPerfilGerencial(perfil) {
   var p = (perfil || '').toString().trim().toLowerCase();
   return p.indexOf('gerente') >= 0 || p.indexOf('coordenador') >= 0 || p.indexOf('coordinador') >= 0 || p.indexOf('manager') >= 0 || p.indexOf('supervisor') >= 0;
@@ -769,6 +818,8 @@ function getDemandasAgenda(sector, email, perfil, responsable) {
   var m = r.headerMap;
   var data = r.data;
   var colTema = getCol(m, ['tema']);
+  var colTipo = getCol(m, ['tipo']);
+  var colLocal = getCol(m, ['local']);
   var colResp = getCol(m, ['responsable']);
   var colSolicitante = getCol(m, ['solicitante']);
   var colEmail = getCol(m, ['email_solicitante']);
@@ -810,6 +861,9 @@ function getDemandasAgenda(sector, email, perfil, responsable) {
     var horaStr = data[i][colHora] ? String(data[i][colHora]).substring(0, 5) : '';
     out.push({
       titulo: (data[i][colTema] || '').toString(),
+      tipoDemanda: (colTipo >= 0 ? data[i][colTipo] : '').toString(),
+      local: (colLocal >= 0 ? data[i][colLocal] : '').toString(),
+      setor: (colSector >= 0 ? data[i][colSector] : '').toString(),
       responsavel: resp,
       data: dataStr,
       hora: horaStr,

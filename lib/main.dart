@@ -9,6 +9,39 @@ import 'package:http/http.dart' as http;
 
 const String kScriptUrl = "https://script.google.com/macros/s/AKfycbxaMMdfTsEV_gUd0Bg2l5D666FqUVEn5wynNyT_Cdt_iY4mg0zxbtzfFVlAeb87IzfqsQ/exec";
 
+/// Paleta centralizada da identidade visual do app.
+class AppColors {
+  AppColors._();
+  // Escala de verdes
+  static const Color green50 = Color(0xFFD8F3DC);
+  static const Color green100 = Color(0xFFB7E4C7);
+  static const Color green200 = Color(0xFF95D5B2);
+  static const Color green300 = Color(0xFF74C69D);
+  static const Color green400 = Color(0xFF52B788); // Principal
+  static const Color green500 = Color(0xFF40916C);
+  static const Color green600 = Color(0xFF2D6A4F);
+  static const Color green700 = Color(0xFF1B4332); // Deep Green
+  static const Color green900 = Color(0xFF081C15); // Texto Dark
+  // Escala de cinzas
+  static const Color gray50 = Color(0xFFFAFAFA);
+  static const Color gray100 = Color(0xFFF5F5F5);
+  static const Color gray200 = Color(0xFFEEEEEE);
+  static const Color gray300 = Color(0xFFE0E0E0);
+  static const Color gray400 = Color(0xFFBDBDBD);
+  static const Color gray500 = Color(0xFF9E9E9E);
+  static const Color gray600 = Color(0xFF757575);
+  static const Color gray700 = Color(0xFF616161);
+  static const Color gray800 = Color(0xFF424242);
+  static const Color gray900 = Color(0xFF212121);
+  // Adicionais
+  static const Color terracotta = Color(0xFF8B3A3A); // Alertas/erros/cancelar
+  static const Color amber = Color(0xFFFFBF00); // Destaques/avisos/atenção
+  // Semânticos (texto secundário/hints em superfícies escuras)
+  static const Color textSecondary = Color(0xFFB7E4C7); // green100 - texto secundário
+  static const Color textHint = Color(0xFF95D5B2); // green200 - hints, mais suave
+  static const Color textOnDark = Color(0xFFD8F3DC); // green50 - máximo contraste em fundos escuros
+}
+
 bool isPerfilGerencial(Map<String, dynamic> usuario) {
   final p = (usuario['Perfil'] ?? usuario['perfil'] ?? usuario['Función'] ?? usuario['Funcao'] ?? '')
       .toString().trim().toLowerCase();
@@ -251,8 +284,7 @@ void showOfflineDialog(BuildContext context) {
 
 /// Mensagem de sucesso/erro harmoniosa com o design do app (contraste legível).
 void _mostrarFeedback(BuildContext context, String texto, {bool sucesso = true}) {
-  const verde = Color(0xFF87A854); // verde suave para feedback
-  final bg = sucesso ? verde : const Color(0xFF8B3A3A); // verde escuro | vermelho escuro
+  final bg = sucesso ? AppColors.green500 : AppColors.terracotta;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Row(
@@ -298,14 +330,24 @@ class _GestaoDuarteAppState extends State<GestaoDuarteApp> {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
+        scaffoldBackgroundColor: AppColors.green50,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E5631),
-          primary: const Color(0xFF1E5631),
-          secondary: const Color(0xFF4C9A2A),
+          seedColor: AppColors.green400,
+          primary: AppColors.green400,
+          secondary: AppColors.green700,
+          error: AppColors.terracotta,
+          surface: AppColors.green50,
+          surfaceContainerHighest: AppColors.gray100,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColors.green700,
+          foregroundColor: Colors.white,
+          iconTheme: IconThemeData(color: Colors.white),
+          titleTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 20),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1E5631),
+            backgroundColor: AppColors.green400,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -315,15 +357,25 @@ class _GestaoDuarteAppState extends State<GestaoDuarteApp> {
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
+        scaffoldBackgroundColor: AppColors.green900,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4C9A2A),
+          seedColor: AppColors.green400,
           brightness: Brightness.dark,
-          primary: const Color(0xFF4C9A2A),
-          secondary: const Color(0xFF1E5631),
+          primary: AppColors.green400,
+          secondary: AppColors.green700,
+          error: AppColors.terracotta,
+          surface: AppColors.green900,
+          surfaceContainerHighest: AppColors.gray800,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColors.green700,
+          foregroundColor: Colors.white,
+          iconTheme: IconThemeData(color: Colors.white),
+          titleTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 20),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1E5631),
+            backgroundColor: AppColors.green400,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -368,11 +420,11 @@ class _TelaLoginState extends State<TelaLogin> {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
-      _mostrarMensagem("Por favor, ingrese su correo", Colors.orange);
+      _mostrarMensagem("Por favor, ingrese su correo", AppColors.amber);
       return;
     }
     if (_passwordController.text.trim().isEmpty) {
-      _mostrarMensagem("Por favor, ingrese su contraseña", Colors.orange);
+      _mostrarMensagem("Por favor, ingrese su contraseña", AppColors.amber);
       return;
     }
 
@@ -397,11 +449,11 @@ class _TelaLoginState extends State<TelaLogin> {
         );
       } else if (usuario == null) {
         final msg = (res['message'] ?? '').toString();
-        _mostrarMensagem(msg.isNotEmpty ? msg : "Usuario no encontrado", Colors.red);
+        _mostrarMensagem(msg.isNotEmpty ? msg : "Usuario no encontrado", AppColors.terracotta);
       }
     } catch (e, st) {
       debugPrint('Login error: $e\n$st');
-      _mostrarMensagem("Error de conexión. Verifique su internet.", Colors.red);
+      _mostrarMensagem("Error de conexión. Verifique su internet.", AppColors.terracotta);
     } finally {
       setState(() => _isLoading = false);
     }
@@ -416,7 +468,7 @@ class _TelaLoginState extends State<TelaLogin> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final labelColor = isDark ? Colors.white70 : Colors.white;
+    final labelColor = isDark ? AppColors.textSecondary : Colors.white;
 
     return Scaffold(
       body: Stack(
@@ -426,7 +478,7 @@ class _TelaLoginState extends State<TelaLogin> {
             child: Image.asset(
               'assets/backgrounds/background1.png',
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: Colors.grey[800]),
+              errorBuilder: (_, __, ___) => Container(color: AppColors.green700),
             ),
           ),
 
@@ -483,12 +535,12 @@ class _TelaLoginState extends State<TelaLogin> {
                   TextField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    style: const TextStyle(color: Colors.black87, fontSize: 16),
+                    style: const TextStyle(color: AppColors.green900, fontSize: 16),
                     decoration: InputDecoration(
                       hintText: 'ejemplo@empresa.com',
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.95),
-                      prefixIcon: Icon(Icons.email_outlined, color: Colors.grey[600], size: 22),
+                      fillColor: AppColors.green50.withOpacity(0.95),
+                      prefixIcon: Icon(Icons.email_outlined, color: AppColors.green600, size: 22),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     ),
@@ -504,14 +556,14 @@ class _TelaLoginState extends State<TelaLogin> {
                   TextField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    style: const TextStyle(color: Colors.black87, fontSize: 16),
+                    style: const TextStyle(color: AppColors.green900, fontSize: 16),
                     decoration: InputDecoration(
                       hintText: '••••••••••',
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.95),
-                      prefixIcon: Icon(Icons.lock_outline, color: Colors.grey[600], size: 22),
+                      fillColor: AppColors.green50.withOpacity(0.95),
+                      prefixIcon: Icon(Icons.lock_outline, color: AppColors.green600, size: 22),
                       suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey[600], size: 22),
+                        icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: AppColors.green600, size: 22),
                         onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -570,7 +622,6 @@ class TelaRecuperarSenha extends StatefulWidget {
 }
 
 class _TelaRecuperarSenhaState extends State<TelaRecuperarSenha> {
-  static const Color _verde = Color(0xFF1E5631);
   final _emailCtrl = TextEditingController();
   final _codigoCtrl = TextEditingController();
   final _novaSenhaCtrl = TextEditingController();
@@ -641,15 +692,13 @@ class _TelaRecuperarSenhaState extends State<TelaRecuperarSenha> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? Colors.grey[900] : Colors.grey[200];
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Restablecer contraseña', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: _verde,
-        foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -667,7 +716,7 @@ class _TelaRecuperarSenhaState extends State<TelaRecuperarSenha> {
                   const SizedBox(height: 16),
                   Text(
                     'Indique el correo electrónico de su cuenta. Si existe, recibirá un código de verificación.',
-                    style: TextStyle(fontSize: 15, color: isDark ? Colors.white70 : Colors.black87),
+                    style: TextStyle(fontSize: 15, color: isDark ? AppColors.textSecondary : AppColors.green900),
                   ),
                   const SizedBox(height: 20),
                   TextField(
@@ -693,7 +742,7 @@ class _TelaRecuperarSenhaState extends State<TelaRecuperarSenha> {
                   const SizedBox(height: 16),
                   Text(
                     'Código enviado a $_emailEnviado. Introdúzcalo abajo con su nueva contraseña.',
-                    style: TextStyle(fontSize: 15, color: isDark ? Colors.white70 : Colors.black87),
+                    style: TextStyle(fontSize: 15, color: isDark ? AppColors.textSecondary : AppColors.green900),
                   ),
                   const SizedBox(height: 20),
                   TextField(
@@ -763,13 +812,9 @@ class TelaHome extends StatelessWidget {
 
   const TelaHome({super.key, required this.usuario, required this.themeMode, required this.onSetThemeMode});
 
-  static const Color _corBotaoSector = Color(0xFF1E5631);
-  static const Color _verdeEscuro = Color(0xFF1E5631);
-  static const Color _verdeMedio = Color(0xFF4C9A2A);
-  static const Color _cinzaEscuro = Color(0xFF424242);
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final sectores = <Map<String, dynamic>>[
       {'nombre': 'SALA TÉCNICA', 'icon': Icons.engineering_rounded},
       {'nombre': 'TOPOGRAFÍA', 'icon': Icons.terrain},
@@ -783,7 +828,7 @@ class TelaHome extends StatelessWidget {
     final isDark = themeMode == ThemeMode.dark || (themeMode == ThemeMode.system && MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
           // Imagem de fundo (grúas) — mesma opacidade da máscara que na TelaLogin
@@ -791,7 +836,7 @@ class TelaHome extends StatelessWidget {
             child: Image.asset(
               'assets/backgrounds/background1.png',
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]),
+              errorBuilder: (_, __, ___) => Container(color: AppColors.green900),
             ),
           ),
           Positioned.fill(
@@ -803,20 +848,20 @@ class TelaHome extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                // Header: perfil do usuário (paleta verde, cinza, branco)
+                // Header: perfil do usuário (paleta verde)
                 Container(
                   margin: const EdgeInsets.all(12),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
-                    color: _cinzaEscuro.withOpacity(0.95),
+                    color: AppColors.green700.withOpacity(0.95),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey[600]!, width: 1),
+                    border: Border.all(color: AppColors.green600, width: 1),
                   ),
                   child: Row(
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundColor: _verdeEscuro,
+                        backgroundColor: AppColors.green700,
                         child: Icon(Icons.person, color: Colors.white, size: 34),
                       ),
                       const SizedBox(width: 16),
@@ -833,13 +878,13 @@ class TelaHome extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text('Función: $perfil', style: TextStyle(color: Colors.grey[300], fontSize: 12)),
-                            Text('Empresa: $empresa', style: TextStyle(color: Colors.grey[300], fontSize: 12)),
+                            Text('Función: $perfil', style: TextStyle(color: AppColors.green200, fontSize: 12)),
+                            Text('Empresa: $empresa', style: TextStyle(color: AppColors.green200, fontSize: 12)),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.logout_rounded, color: Colors.grey[400]),
+                        icon: Icon(Icons.logout_rounded, color: AppColors.green100),
                         onPressed: () {
                           Navigator.pushAndRemoveUntil(
                             context,
@@ -878,9 +923,9 @@ class TelaHome extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           decoration: BoxDecoration(
-                            color: _cinzaEscuro.withOpacity(0.7),
+                            color: AppColors.green700.withOpacity(0.7),
                             borderRadius: BorderRadius.circular(28),
-                            border: Border.all(color: _verdeMedio, width: 1),
+                            border: Border.all(color: AppColors.green500, width: 1),
                           ),
                           child: Text(proyecto, style: const TextStyle(color: Colors.white, fontSize: 15)),
                         ),
@@ -911,7 +956,7 @@ class TelaHome extends StatelessWidget {
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
                                 decoration: BoxDecoration(
-                                  color: _corBotaoSector,
+                                  color: AppColors.green700,
                                   borderRadius: BorderRadius.circular(28),
                                   border: Border.all(color: Colors.white, width: 1.5),
                                   boxShadow: [
@@ -945,14 +990,14 @@ class TelaHome extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   decoration: BoxDecoration(
-                    color: _cinzaEscuro,
-                    border: Border(top: BorderSide(color: Colors.grey[700]!)),
+                    color: AppColors.green700,
+                    border: Border(top: BorderSide(color: AppColors.green600)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       IconButton(
-                        icon: Icon(Icons.settings_rounded, color: Colors.grey[400]),
+                        icon: Icon(Icons.settings_rounded, color: AppColors.green100),
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -964,7 +1009,7 @@ class TelaHome extends StatelessWidget {
                         tooltip: 'Ajustes',
                       ),
                       IconButton(
-                        icon: Icon(Icons.help_outline_rounded, color: Colors.grey[400]),
+                        icon: Icon(Icons.help_outline_rounded, color: AppColors.green100),
                         onPressed: () {
                           showDialog(
                             context: context,
@@ -1010,7 +1055,6 @@ class TelaSettings extends StatefulWidget {
 }
 
 class _TelaSettingsState extends State<TelaSettings> {
-  static const Color _verde = Color(0xFF1E5631);
   final _senhaAtualCtrl = TextEditingController();
   final _novaSenhaCtrl = TextEditingController();
   final _confirmarSenhaCtrl = TextEditingController();
@@ -1064,15 +1108,13 @@ class _TelaSettingsState extends State<TelaSettings> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? Colors.grey[900] : Colors.grey[200];
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Ajustes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: _verde,
-        foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -1104,7 +1146,7 @@ class _TelaSettingsState extends State<TelaSettings> {
                       children: [
                         Icon(
                           isDark ? Icons.dark_mode : Icons.light_mode,
-                          color: _verde,
+                          color: theme.colorScheme.primary,
                           size: 24,
                         ),
                         const SizedBox(width: 16),
@@ -1121,9 +1163,9 @@ class _TelaSettingsState extends State<TelaSettings> {
                             ),
                             Text(
                               isDark ? 'Activado' : 'Desactivado',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey[600],
+                                color: AppColors.green600,
                               ),
                             ),
                           ],
@@ -1156,7 +1198,7 @@ class _TelaSettingsState extends State<TelaSettings> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.lock_reset, color: _verde, size: 24),
+                        Icon(Icons.lock_reset, color: theme.colorScheme.primary, size: 24),
                         const SizedBox(width: 12),
                         Text(
                           'Cambiar contraseña',
@@ -1212,7 +1254,7 @@ class _TelaSettingsState extends State<TelaSettings> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _verde,
+                          backgroundColor: theme.colorScheme.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
@@ -1239,9 +1281,6 @@ class TelaSubMenu extends StatelessWidget {
 
   const TelaSubMenu({super.key, required this.usuario, required this.setorSelecionado});
 
-  static const Color _verdeEscuro = Color(0xFF1E5631);
-  static const Color _cinzaEscuro = Color(0xFF424242);
-
   List<Map<String, dynamic>> _itensPorSetor() {
     return [
       {'nombre': 'AGENDA', 'icon': Icons.calendar_month, 'tela': 'agenda'},
@@ -1267,14 +1306,11 @@ class TelaSubMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final itens = _itensPorSetor();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey[900] : Colors.grey[200],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(setorSelecionado, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: _cinzaEscuro,
-        foregroundColor: Colors.white,
       ),
       body: Center(
         child: ConstrainedBox(
@@ -1297,7 +1333,7 @@ class TelaSubMenu extends StatelessWidget {
               borderRadius: BorderRadius.circular(15),
               child: Container(
                 decoration: BoxDecoration(
-                  color: _verdeEscuro,
+                  color: AppColors.green700,
                   borderRadius: BorderRadius.circular(15),
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
@@ -1361,9 +1397,6 @@ class TelaFormSolicitar extends StatefulWidget {
 }
 
 class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
-  static const Color _verde = Color(0xFF1E5631);
-  static const Color _cinzaEscuro = Color(0xFF424242);
-
   String? _sectorSolicitante;
   final _solicitanteCtrl = TextEditingController();
   String? _sectorDestino;
@@ -1685,14 +1718,14 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
         maxLines: multiline ? 4 : 1,
         decoration: InputDecoration(
           labelText: label + (obrigatorio ? ' *' : ''),
-          labelStyle: const TextStyle(color: Colors.white70),
-          suffixIcon: onTap != null ? Icon(suffixIconData ?? Icons.calendar_today, color: Colors.grey[500], size: 20) : null,
-          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey[600]!)),
-          focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: _verde, width: 1.5)),
+          labelStyle: const TextStyle(color: AppColors.textOnDark),
+          suffixIcon: onTap != null ? Icon(suffixIconData ?? Icons.calendar_today, color: AppColors.textOnDark, size: 20) : null,
+          enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green600)),
+          focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green400, width: 1.5)),
           filled: true,
-          fillColor: _cinzaEscuro.withOpacity(0.6),
+          fillColor: AppColors.green700.withOpacity(0.6),
         ),
-        style: const TextStyle(color: Colors.white),
+        style: const TextStyle(color: AppColors.textOnDark),
       ),
     );
   }
@@ -1711,14 +1744,14 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
               readOnly: _coordenadasFromMap,
               decoration: InputDecoration(
                 labelText: 'Coordenadas',
-                labelStyle: const TextStyle(color: Colors.white70),
-                suffixIcon: _coordenadasFromMap ? Icon(Icons.check_circle, color: _verde, size: 20) : null,
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey[600]!)),
-                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: _verde, width: 1.5)),
+                labelStyle: const TextStyle(color: AppColors.textOnDark),
+                suffixIcon: _coordenadasFromMap ? Icon(Icons.check_circle, color: AppColors.textOnDark, size: 20) : null,
+                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green600)),
+                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green400, width: 1.5)),
                 filled: true,
-                fillColor: _cinzaEscuro.withOpacity(0.6),
+                fillColor: AppColors.green700.withOpacity(0.6),
               ),
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppColors.textOnDark),
             ),
           ),
           const SizedBox(width: 8),
@@ -1738,11 +1771,11 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
                   setState(() => _coordenadasFromMap = true);
                 }
               },
-              icon: Icon(Icons.place, size: 18, color: Colors.grey[600]),
-              label: Text('Seleccionar en Mapa', style: TextStyle(color: Colors.grey[600])),
+              icon: const Icon(Icons.place, size: 18, color: AppColors.textOnDark),
+              label: const Text('Seleccionar en Mapa', style: TextStyle(color: AppColors.textOnDark)),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.grey[600],
-                side: BorderSide(color: Colors.grey[600]!),
+                foregroundColor: AppColors.textOnDark,
+                side: const BorderSide(color: AppColors.textOnDark),
               ),
             ),
           ),
@@ -1760,13 +1793,13 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
           readOnly: true,
           decoration: InputDecoration(
             labelText: 'Local',
-            labelStyle: const TextStyle(color: Colors.white70),
-            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey[600]!)),
-            focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: _verde, width: 1.5)),
+            labelStyle: const TextStyle(color: AppColors.textOnDark),
+            enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green600)),
+            focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green400, width: 1.5)),
             filled: true,
-            fillColor: _cinzaEscuro.withOpacity(0.6),
+            fillColor: AppColors.green700.withOpacity(0.6),
           ),
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppColors.textOnDark),
         ),
       );
     }
@@ -1784,15 +1817,15 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
         },
         decoration: InputDecoration(
           labelText: 'Local',
-          labelStyle: const TextStyle(color: Colors.white70),
-          suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.grey[500]),
-          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey[600]!)),
-          focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: _verde, width: 1.5)),
+          labelStyle: const TextStyle(color: AppColors.textOnDark),
+          suffixIcon: const Icon(Icons.arrow_drop_down, color: AppColors.textOnDark),
+          enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green600)),
+          focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green400, width: 1.5)),
           filled: true,
-          fillColor: _cinzaEscuro.withOpacity(0.6),
+          fillColor: AppColors.green700.withOpacity(0.6),
         ),
-        dropdownColor: Colors.grey[800],
-        items: _locais.map((v) => DropdownMenuItem(value: v, child: Text(v, style: const TextStyle(color: Colors.white)))).toList(),
+        dropdownColor: AppColors.green700,
+        items: _locais.map((v) => DropdownMenuItem(value: v, child: Text(v, style: const TextStyle(color: AppColors.textOnDark)))).toList(),
       ),
     );
   }
@@ -1804,15 +1837,15 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
         value: opcoes.contains(value) ? value : null,
         decoration: InputDecoration(
           labelText: label + ' *',
-          labelStyle: const TextStyle(color: Colors.white70),
-          suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.grey[500]),
-          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey[600]!)),
-          focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: _verde, width: 1.5)),
+          labelStyle: const TextStyle(color: AppColors.textOnDark),
+          suffixIcon: const Icon(Icons.arrow_drop_down, color: AppColors.textOnDark),
+          enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green600)),
+          focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.green400, width: 1.5)),
           filled: true,
-          fillColor: _cinzaEscuro.withOpacity(0.6),
+          fillColor: AppColors.green700.withOpacity(0.6),
         ),
-        dropdownColor: Colors.grey[800],
-        items: opcoes.map((v) => DropdownMenuItem(value: v, child: Text(v, style: const TextStyle(color: Colors.white)))).toList(),
+        dropdownColor: AppColors.green700,
+        items: opcoes.map((v) => DropdownMenuItem(value: v, child: Text(v, style: const TextStyle(color: AppColors.textOnDark)))).toList(),
         onChanged: onChanged,
       ),
     );
@@ -1825,11 +1858,9 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Solicitar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: _verde,
-        foregroundColor: Colors.white,
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _cancelar),
       ),
-      backgroundColor: Colors.grey[900],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -1856,15 +1887,15 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red)),
+                  decoration: BoxDecoration(color: AppColors.terracotta.withOpacity(0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.terracotta)),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning, color: Colors.red, size: 24),
+                      const Icon(Icons.warning, color: AppColors.terracotta, size: 24),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           _slotIndisponivel ? 'NO DISPONIBLE: 4 brigadas ocupadas en este horario.' : 'Horario fuera del expediente: Lun-Vie 08:00-17:00, Sáb 08:00-12:00. Domingos no permitidos.',
-                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                          style: const TextStyle(color: AppColors.terracotta, fontSize: 13),
                         ),
                       ),
                     ],
@@ -1875,11 +1906,11 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(onPressed: _enviando ? null : _cancelar, child: const Text('Cancelar', style: TextStyle(color: Colors.white))),
+                TextButton(onPressed: _enviando ? null : _cancelar, child: const Text('Cancelar', style: TextStyle(color: AppColors.terracotta))),
                 const SizedBox(width: 16),
                 ElevatedButton(
                   onPressed: (_enviando || !_podeEnviar()) ? null : _enviar,
-                  style: ElevatedButton.styleFrom(backgroundColor: _verde, foregroundColor: Colors.white, disabledBackgroundColor: Colors.grey),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.green400, foregroundColor: Colors.white, disabledBackgroundColor: AppColors.green600),
                   child: _enviando ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Enviar'),
                 ),
               ],
@@ -1915,7 +1946,7 @@ class _BarraInferiorSubTela extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      color: const Color(0xFF1E5631),
+      color: AppColors.green700,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -1950,8 +1981,6 @@ class _ItemBarra extends StatelessWidget {
 AppBar _appBarComBadge(BuildContext context, String titulo, {VoidCallback? onSearch, VoidCallback? onRefresh, int badgeCount = 3, bool showRefreshBadge = true}) {
   return AppBar(
     title: Text(titulo, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-    backgroundColor: const Color(0xFF1E5631),
-    foregroundColor: Colors.white,
     actions: [
       IconButton(icon: const Icon(Icons.search), onPressed: onSearch ?? () {}),
       if (showRefreshBadge)
@@ -1964,7 +1993,7 @@ AppBar _appBarComBadge(BuildContext context, String titulo, {VoidCallback? onSea
                 top: 8,
                 child: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: AppColors.amber, shape: BoxShape.circle),
                   child: Text('$badgeCount', style: const TextStyle(color: Colors.white, fontSize: 10)),
                 ),
               ),
@@ -1988,8 +2017,6 @@ class TelaDetalleDemanda extends StatelessWidget {
     required this.setorSelecionado,
   });
 
-  static const Color _verde = Color(0xFF1E5631);
-
   Future<void> _confirmarCancelar(BuildContext context) async {
     final d = demanda;
     final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
@@ -1997,7 +2024,7 @@ class TelaDetalleDemanda extends StatelessWidget {
       content: Text('¿Estás seguro que deseas cancelar "${(d['titulo'] ?? d['local'] ?? '').toString()}"?'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
-        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text('Sí, cancelar')),
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.terracotta), onPressed: () => Navigator.pop(ctx, true), child: const Text('Sí, cancelar')),
       ],
     ));
     if (ok != true) return;
@@ -2023,12 +2050,10 @@ class TelaDetalleDemanda extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('DETALLES', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: _verde,
-        foregroundColor: Colors.white,
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         actions: const [],
       ),
-      backgroundColor: Colors.grey[900],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -2060,9 +2085,9 @@ class TelaDetalleDemanda extends StatelessWidget {
                         ),
                       )).then((_) => Navigator.pop(context));
                     },
-                    icon: const Icon(Icons.edit_calendar, size: 18, color: Colors.amber),
-                    label: const Text('Reprogramar', style: TextStyle(color: Colors.amber)),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.amber, side: const BorderSide(color: Colors.amber)),
+                    icon: const Icon(Icons.edit_calendar, size: 18, color: AppColors.amber),
+                    label: const Text('Reprogramar', style: TextStyle(color: AppColors.amber)),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.amber, side: const BorderSide(color: AppColors.amber)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -2071,7 +2096,7 @@ class TelaDetalleDemanda extends StatelessWidget {
                     onPressed: () => _confirmarCancelar(context),
                     icon: const Icon(Icons.cancel_outlined, size: 18),
                     label: const Text('Cancelar'),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.terracotta, side: const BorderSide(color: AppColors.terracotta)),
                   ),
                 ),
               ],
@@ -2102,7 +2127,7 @@ class TelaDetalleDemanda extends StatelessWidget {
         children: [
           SizedBox(
             width: 140,
-            child: Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
           ),
           Expanded(
             child: Text(valor, style: const TextStyle(color: Colors.white, fontSize: 14)),
@@ -2120,14 +2145,14 @@ class TelaDetalleDemanda extends StatelessWidget {
         children: [
           SizedBox(
             width: 140,
-            child: Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
           ),
           Expanded(
             child: Row(
               children: [
-                Icon(Icons.calendar_today, color: Colors.blue[400], size: 18),
+                Icon(Icons.calendar_today, color: AppColors.green400, size: 18),
                 const SizedBox(width: 8),
-                Text(valor, style: TextStyle(color: Colors.blue[400], fontSize: 14)),
+                Text(valor, style: TextStyle(color: AppColors.green400, fontSize: 14)),
               ],
             ),
           ),
@@ -2150,7 +2175,6 @@ class TelaDemandas extends StatefulWidget {
 }
 
 class _TelaDemandasState extends State<TelaDemandas> {
-  static const Color _verde = Color(0xFF1E5631);
   String? _filtroEstatus;
   bool _searchVisible = false;
   final TextEditingController _searchController = TextEditingController();
@@ -2210,7 +2234,7 @@ class _TelaDemandasState extends State<TelaDemandas> {
         }),
         showRefreshBadge: false,
       ),
-      backgroundColor: Colors.grey[900],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: kIsWeb ? 680 : double.infinity),
@@ -2218,7 +2242,7 @@ class _TelaDemandasState extends State<TelaDemandas> {
         future: _futureDemandas,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: _verde));
+            return const Center(child: CircularProgressIndicator(color: AppColors.green400));
           }
           var demandas = List<Map<String, dynamic>>.from((snap.data ?? []).map((e) => Map<String, dynamic>.from(e as Map)));
           demandas = _filtrarPorTexto(demandas, _searchController.text);
@@ -2237,7 +2261,7 @@ class _TelaDemandasState extends State<TelaDemandas> {
               children: [
                 if (_searchVisible) _searchBarWidget(),
                 _filtroEstatusWidget(opcoesEstatus),
-                Expanded(child: Center(child: Text('Sin demandas', style: TextStyle(color: Colors.grey[400])))),
+                Expanded(child: Center(child: Text('Sin demandas', style: TextStyle(color: AppColors.textSecondary)))),
               ],
             );
           }
@@ -2253,9 +2277,9 @@ class _TelaDemandasState extends State<TelaDemandas> {
             itemBuilder: (context, i) {
               final d = demandas[i];
               final status = (d['status'] ?? 'Pendiente').toString();
-              final corBadge = status.toLowerCase().contains('resolv') ? Colors.blue
-                  : status.toLowerCase().contains('aberto') || status.toLowerCase().contains('abiert') ? Colors.orange
-                  : Colors.red;
+              final corBadge = status.toLowerCase().contains('resolv') ? AppColors.green500
+                  : status.toLowerCase().contains('aberto') || status.toLowerCase().contains('abiert') ? AppColors.amber
+                  : AppColors.terracotta;
               return InkWell(
                 onTap: () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => TelaDetalleDemanda(
@@ -2267,7 +2291,7 @@ class _TelaDemandasState extends State<TelaDemandas> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Colors.grey[800]!)),
+                    border: Border(bottom: BorderSide(color: AppColors.green700)),
                   ),
                   child: Row(
                     children: [
@@ -2277,13 +2301,13 @@ class _TelaDemandasState extends State<TelaDemandas> {
                           children: [
                             Text((d['local'] ?? d['titulo'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                             const SizedBox(height: 4),
-                            Text((d['tipoDemanda'] ?? d['setor'] ?? '').toString(), style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+                            Text((d['tipoDemanda'] ?? d['setor'] ?? '').toString(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                           ],
                         ),
                       ),
                       Container(width: 12, height: 12, decoration: BoxDecoration(color: corBadge, shape: BoxShape.circle)),
                       const SizedBox(width: 12),
-                      Text((d['data'] ?? '').toString(), style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                      Text((d['data'] ?? '').toString(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -2297,11 +2321,6 @@ class _TelaDemandasState extends State<TelaDemandas> {
       ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _abrirFormSolicitar(context),
-        child: const Icon(Icons.add),
-        backgroundColor: Colors.grey,
-      ),
       bottomNavigationBar: _BarraInferiorSubTela(
         onSolicitar: () => _abrirFormSolicitar(context),
         onMapa: () => Navigator.push(context, MaterialPageRoute(
@@ -2314,10 +2333,10 @@ class _TelaDemandasState extends State<TelaDemandas> {
   Widget _searchBarWidget() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: Colors.grey[850],
+      color: AppColors.green700,
       child: Row(
         children: [
-          Icon(Icons.search, color: Colors.grey[400], size: 22),
+          const Icon(Icons.search, color: AppColors.textSecondary, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
@@ -2326,7 +2345,7 @@ class _TelaDemandasState extends State<TelaDemandas> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Buscar por local, tipo, solicitante...',
-                hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
+                hintStyle: TextStyle(color: AppColors.textHint, fontSize: 14),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -2334,7 +2353,7 @@ class _TelaDemandasState extends State<TelaDemandas> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.white70),
+            icon: const Icon(Icons.close, color: AppColors.textSecondary),
             onPressed: () => setState(() {
               _searchVisible = false;
               _searchController.clear();
@@ -2353,10 +2372,10 @@ class _TelaDemandasState extends State<TelaDemandas> {
         children: opcoes.map((e) => Padding(
           padding: const EdgeInsets.only(right: 8),
           child: FilterChip(
-            label: Text(e, style: TextStyle(color: (_filtroEstatus == e || (_filtroEstatus == null && e == 'Todos')) ? Colors.white : null)),
+            label: Text(e, style: TextStyle(color: (_filtroEstatus == e || (_filtroEstatus == null && e == 'Todos')) ? Colors.white : AppColors.textSecondary)),
             selected: _filtroEstatus == e || (_filtroEstatus == null && e == 'Todos'),
             onSelected: (v) => setState(() => _filtroEstatus = v ? (e == 'Todos' ? null : e) : null),
-            selectedColor: _verde.withOpacity(0.7),
+            selectedColor: AppColors.green400.withOpacity(0.7),
           ),
         )).toList(),
       ),
@@ -2371,8 +2390,6 @@ class TelaGestion extends StatelessWidget {
   final String setorSelecionado;
 
   const TelaGestion({super.key, required this.usuario, required this.setorSelecionado});
-
-  static const Color _verde = Color(0xFF1E5631);
 
   void _mostrarFormProgramar(BuildContext context, Map<String, dynamic> item) {
     final respController = TextEditingController();
@@ -2400,7 +2417,7 @@ class TelaGestion extends StatelessWidget {
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(backgroundColor: _verde),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.green700),
                 child: const Text('Guardar'),
               ),
             ],
@@ -2412,13 +2429,12 @@ class TelaGestion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text('Gestión - $setorSelecionado'),
-        backgroundColor: _verde,
-        foregroundColor: Colors.white,
       ),
-      backgroundColor: Colors.grey[900],
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: kIsWeb ? 680 : double.infinity),
@@ -2430,7 +2446,7 @@ class TelaGestion extends StatelessWidget {
         }(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: _verde));
+            return const Center(child: CircularProgressIndicator(color: AppColors.green400));
           }
           final demandas = snap.data ?? [];
           if (demandas.isEmpty) {
@@ -2438,10 +2454,10 @@ class TelaGestion extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_outline, size: 64, color: Colors.grey[600]),
+                  Icon(Icons.check_circle_outline, size: 64, color: AppColors.green600),
                   const SizedBox(height: 16),
-                  Text('Cola vacía', style: TextStyle(color: Colors.grey[400], fontSize: 18)),
-                  Text('Ninguna demanda pendiente de programación', style: TextStyle(color: Colors.grey[500], fontSize: 14)),
+                  Text('Cola vacía', style: TextStyle(color: AppColors.green600, fontSize: 18)),
+                  Text('Ninguna demanda pendiente de programación', style: TextStyle(color: AppColors.green500, fontSize: 14)),
                 ],
               ),
             );
@@ -2454,22 +2470,32 @@ class TelaGestion extends StatelessWidget {
               final tema = (d['tema'] ?? d['titulo'] ?? '').toString();
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
-                color: Colors.grey[800],
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text(tema, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500))),
-                      ElevatedButton.icon(
+                color: AppColors.gray600,
+                child: InkWell(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TelaDetalleDemanda(
+                      demanda: d,
+                      usuario: usuario,
+                      setorSelecionado: setorSelecionado,
+                    ),
+                  )),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(tema, style: const TextStyle(color: AppColors.gray200, fontSize: 16, fontWeight: FontWeight.w500))),
+                        ElevatedButton.icon(
                         onPressed: () => _mostrarFormProgramar(context, d),
                         icon: const Icon(Icons.schedule, size: 18),
                         label: const Text('Programar'),
-                        style: ElevatedButton.styleFrom(backgroundColor: _verde, foregroundColor: Colors.white),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.green700, foregroundColor: Colors.white),
                       ),
                     ],
                   ),
                 ),
-              );
+              ),
+            );
             },
           );
         },
@@ -2503,8 +2529,6 @@ class TelaAgenda extends StatefulWidget {
 }
 
 class _TelaAgendaState extends State<TelaAgenda> {
-  static const Color _verde = Color(0xFF1E5631);
-  static const Color _cinzaDisponivel = Color(0xFF6B6B6B);
   DateTime _diaSelecionado = DateTime.now();
 
   bool get _isTopografia => widget.setorSelecionado.toUpperCase().contains('TOPOGRAF');
@@ -2519,6 +2543,22 @@ class _TelaAgendaState extends State<TelaAgenda> {
       slots.add({'data': dataStr, 'hora': horaStr, 'ocupacao': ocupacao[key] ?? 0});
     }
     return slots;
+  }
+
+  static String _tituloDemanda(Map<String, dynamic> d) {
+    final v = (d['local'] ?? '').toString().trim();
+    if (v.isNotEmpty) return v;
+    final t = (d['titulo'] ?? '').toString().trim();
+    if (t.isNotEmpty) return t;
+    return (d['requerimiento'] ?? '').toString().trim();
+  }
+
+  static String _subtituloDemanda(Map<String, dynamic> d) {
+    final v = (d['tipoDemanda'] ?? '').toString().trim();
+    if (v.isNotEmpty) return v;
+    final s = (d['setor'] ?? '').toString().trim();
+    if (s.isNotEmpty) return s;
+    return (d['tema'] ?? '').toString().trim();
   }
 
   Map<String, List<Map<String, dynamic>>> _agruparPorData(List<Map<String, dynamic>> demandas, String setorSelecionado) {
@@ -2541,8 +2581,8 @@ class _TelaAgendaState extends State<TelaAgenda> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _appBarComBadge(context, 'AGENDA'),
-      backgroundColor: Colors.grey[900],
+      appBar: _appBarComBadge(context, 'AGENDA', showRefreshBadge: false),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: kIsWeb ? 700 : double.infinity),
@@ -2557,7 +2597,7 @@ class _TelaAgendaState extends State<TelaAgenda> {
         ]),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: _verde));
+            return const Center(child: CircularProgressIndicator(color: AppColors.green400));
           }
           final results = snap.data ?? [<Map<String, dynamic>>[], {}];
           final demandas = (results.isNotEmpty && results[0] is List) ? List<Map<String, dynamic>>.from((results[0] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
@@ -2581,24 +2621,24 @@ class _TelaAgendaState extends State<TelaAgenda> {
                           final d = await showDatePicker(context: context, initialDate: _diaSelecionado, firstDate: DateTime(2020), lastDate: DateTime(2030));
                           if (d != null) setState(() => _diaSelecionado = d);
                         },
-                        child: Text(dataStr, style: const TextStyle(color: Colors.red, fontSize: 16)),
+                        child: Text(dataStr, style: const TextStyle(color: AppColors.terracotta, fontSize: 16)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   const Text('Cuadrícula de horarios (Semáforo Brigadas)', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text('0-3 brigadas: Disponible (Verde)  |  4 brigadas: NO DISPONIBLE - Límite alcanzado (Rojo)', style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+                  Text('0-3 brigadas: Disponible (Verde)  |  4 brigadas: NO DISPONIBLE - Límite alcanzado (Rojo)', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                   const SizedBox(height: 12),
                   ...slots.map((s) {
                     final occ = s['ocupacao'] as int;
                     final disp = occ < 4;
                     return Card(
                       margin: const EdgeInsets.only(bottom: 6),
-                      color: disp ? _cinzaDisponivel : Colors.red.withOpacity(0.5),
+                      color: disp ? AppColors.green600 : AppColors.terracotta.withOpacity(0.5),
                       child: ListTile(
                         title: Text('${s['hora']} - ${s['ocupacao']}/4 brigadas', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-                        trailing: Text(disp ? 'Disponible' : 'NO DISPONIBLE - Límite alcanzado', style: TextStyle(color: disp ? Colors.white : Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
+                        trailing: Text(disp ? 'Disponible' : 'NO DISPONIBLE - Límite alcanzado', style: TextStyle(color: disp ? Colors.white : AppColors.terracotta, fontWeight: FontWeight.bold, fontSize: 12)),
                       ),
                     );
                   }),
@@ -2607,13 +2647,23 @@ class _TelaAgendaState extends State<TelaAgenda> {
                   const SizedBox(height: 12),
                   ...tarefasDoDia.map((d) => Card(
                     margin: const EdgeInsets.only(bottom: 8),
-                    color: Colors.grey[800],
-                    child: ListTile(
-                      title: Text((d['titulo'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-                      subtitle: Text('${d['responsavel'] ?? ''} • ${d['hora'] ?? ''}', style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+                    color: AppColors.gray600,
+                    child: InkWell(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => TelaDetalleDemanda(
+                          demanda: d,
+                          usuario: widget.usuario,
+                          setorSelecionado: widget.setorSelecionado,
+                        ),
+                      )),
+                      borderRadius: BorderRadius.circular(4),
+                      child: ListTile(
+                        title: Text(_tituloDemanda(d), style: const TextStyle(color: AppColors.gray50, fontWeight: FontWeight.w500)),
+                        subtitle: Text(_subtituloDemanda(d), style: const TextStyle(color: AppColors.gray50, fontSize: 13)),
+                      ),
                     ),
                   )),
-                  if (tarefasDoDia.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('Ninguna tarea programada', style: TextStyle(color: Colors.grey[500]))),
+                  if (tarefasDoDia.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('Ninguna tarea programada', style: TextStyle(color: AppColors.textSecondary))),
                 ],
               ),
             );
@@ -2623,9 +2673,9 @@ class _TelaAgendaState extends State<TelaAgenda> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.calendar_today, size: 64, color: Colors.grey[600]),
+                  Icon(Icons.calendar_today, size: 64, color: AppColors.green600),
                   const SizedBox(height: 16),
-                  Text('Sin demandas programadas', style: TextStyle(color: Colors.grey[400], fontSize: 18)),
+                  Text('Sin demandas programadas', style: TextStyle(color: AppColors.green600, fontSize: 18)),
                 ],
               ),
             );
@@ -2644,7 +2694,7 @@ class _TelaAgendaState extends State<TelaAgenda> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Row(
                       children: [
-                        Container(width: 4, height: 20, color: _cinzaDisponivel),
+                        Container(width: 4, height: 20, color: AppColors.green600),
                         const SizedBox(width: 8),
                         Text(data, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                       ],
@@ -2658,11 +2708,21 @@ class _TelaAgendaState extends State<TelaAgenda> {
                     final disp = occ < 4;
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
-                      color: disp ? Colors.grey[800] : Colors.red.withOpacity(0.2),
-                      child: ListTile(
-                        title: Text((d['titulo'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-                        subtitle: Text('Responsable: ${(d['responsavel'] ?? '').toString()}${(d['hora'] ?? '').toString().isNotEmpty ? ' • ${d['hora']}' : ''}${_isTopografia ? ' • $occ/4 brigadas' : ''}', style: TextStyle(color: Colors.grey[400], fontSize: 13)),
-                        trailing: _isTopografia && !disp ? const Text('NO DISPONIBLE', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)) : const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                      color: disp ? AppColors.gray600 : AppColors.terracotta.withOpacity(0.2),
+                      child: InkWell(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => TelaDetalleDemanda(
+                            demanda: d,
+                            usuario: widget.usuario,
+                            setorSelecionado: widget.setorSelecionado,
+                          ),
+                        )),
+                        borderRadius: BorderRadius.circular(4),
+                        child: ListTile(
+                          title: Text(_tituloDemanda(d), style: const TextStyle(color: AppColors.gray50, fontWeight: FontWeight.w500)),
+                          subtitle: Text(_subtituloDemanda(d), style: const TextStyle(color: AppColors.gray50, fontSize: 13)),
+                          trailing: _isTopografia && !disp ? const Text('NO DISPONIBLE', style: TextStyle(color: AppColors.terracotta, fontSize: 11, fontWeight: FontWeight.bold)) : const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.gray50),
+                        ),
                       ),
                     );
                   }),
@@ -2704,9 +2764,6 @@ class TelaGrafico extends StatefulWidget {
 }
 
 class _TelaGraficoState extends State<TelaGrafico> {
-  static const Color _verde = Color(0xFF1E5631);
-  static const Color _verdeClaro = Color(0xFF5B9A4B);
-
   _PeriodoGrafico _periodo = _PeriodoGrafico.semana;
 
   bool _dataNoPeriodo(String? dataStr, _PeriodoGrafico periodo) {
@@ -2774,10 +2831,8 @@ class _TelaGraficoState extends State<TelaGrafico> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Carga de Trabajo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: _verde,
-        foregroundColor: Colors.white,
       ),
-      backgroundColor: Colors.grey[900],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: kIsWeb ? 700 : double.infinity),
@@ -2788,7 +2843,7 @@ class _TelaGraficoState extends State<TelaGrafico> {
         }(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: _verde));
+            return const Center(child: CircularProgressIndicator(color: AppColors.green400));
           }
           final demandas = snap.data ?? [];
           final carga = _processarCargaTrabalho(demandas);
@@ -2811,8 +2866,8 @@ class _TelaGraficoState extends State<TelaGrafico> {
                     setState(() => _periodo = sel.first);
                   },
                   style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _verde : Colors.grey[800]),
-                    foregroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Colors.white : Colors.grey[400]),
+                    backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? AppColors.green400 : AppColors.green700),
+                    foregroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Colors.white : AppColors.textOnDark),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -2820,14 +2875,14 @@ class _TelaGraficoState extends State<TelaGrafico> {
                   children: [
                     Expanded(
                       child: Card(
-                        color: Colors.grey[800],
+                        color: AppColors.gray600,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Carga Total', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
-                              Text('${cargaTotalHoras.toStringAsFixed(1)} h', style: const TextStyle(color: _verde, fontSize: 22, fontWeight: FontWeight.bold)),
+                              Text('Carga Total', style: TextStyle(color: AppColors.textOnDark, fontSize: 12)),
+                              Text('${cargaTotalHoras.toStringAsFixed(1)} h', style: const TextStyle(color: AppColors.textOnDark, fontSize: 22, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -2836,14 +2891,14 @@ class _TelaGraficoState extends State<TelaGrafico> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Card(
-                        color: Colors.grey[800],
+                        color: AppColors.gray600,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Volumen', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
-                              Text('$volumeTotal ítems', style: const TextStyle(color: _verdeClaro, fontSize: 22, fontWeight: FontWeight.bold)),
+                              Text('Volumen', style: TextStyle(color: AppColors.textOnDark, fontSize: 12)),
+                              Text('$volumeTotal ítems', style: const TextStyle(color: AppColors.textOnDark, fontSize: 22, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -2856,7 +2911,7 @@ class _TelaGraficoState extends State<TelaGrafico> {
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
-                      child: Text('Sin demandas programadas en el período', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                      child: Text('Sin demandas programadas en el período', style: TextStyle(color: AppColors.textOnDark, fontSize: 16)),
                     ),
                   )
                 else
@@ -2895,7 +2950,7 @@ class _TelaGraficoState extends State<TelaGrafico> {
                                       padding: const EdgeInsets.only(top: 8),
                                       child: Transform.rotate(
                                         angle: -0.6,
-                                        child: Text(_abreviarNome(carga[i]['responsavel'] as String), style: TextStyle(color: Colors.grey[400], fontSize: 10)),
+                                        child: Text(_abreviarNome(carga[i]['responsavel'] as String), style: TextStyle(color: AppColors.textOnDark, fontSize: 10)),
                                       ),
                                     );
                                   },
@@ -2906,7 +2961,7 @@ class _TelaGraficoState extends State<TelaGrafico> {
                               leftTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
-                                  getTitlesWidget: (val, meta) => Text(val.toInt().toString(), style: TextStyle(color: Colors.grey[500], fontSize: 10)),
+                                  getTitlesWidget: (val, meta) => Text(val.toInt().toString(), style: TextStyle(color: AppColors.textOnDark, fontSize: 10)),
                                   reservedSize: 28,
                                   interval: maxY / 5,
                                 ),
@@ -2915,14 +2970,14 @@ class _TelaGraficoState extends State<TelaGrafico> {
                           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                         ),
                         borderData: FlBorderData(show: false),
-                        gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: Colors.grey[800]!, strokeWidth: 0.5)),
+                        gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: AppColors.green700, strokeWidth: 0.5)),
                         barGroups: [
                           for (int i = 0; i < carga.length; i++) ...[
                             BarChartGroupData(
                               x: i,
                               barRods: [
-                                BarChartRodData(toY: (carga[i]['totalHoras'] as num).toDouble(), color: _verde, width: 12, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
-                                BarChartRodData(toY: (carga[i]['qtdDemandas'] as num).toDouble(), color: _verdeClaro, width: 12, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+                                BarChartRodData(toY: (carga[i]['totalHoras'] as num).toDouble(), color: AppColors.amber, width: 12, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+                                BarChartRodData(toY: (carga[i]['qtdDemandas'] as num).toDouble(), color: AppColors.amber, width: 12, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
                               ],
                               showingTooltipIndicators: [],
                             ),
@@ -2942,18 +2997,18 @@ class _TelaGraficoState extends State<TelaGrafico> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(width: 12, height: 12, color: _verde),
+                            Container(width: 12, height: 12, color: AppColors.amber),
                             const SizedBox(width: 6),
-                            Text('Horas', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                            Text('Horas', style: TextStyle(color: AppColors.textOnDark, fontSize: 12)),
                           ],
                         ),
                         const SizedBox(width: 20),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(width: 12, height: 12, color: _verdeClaro),
+                            Container(width: 12, height: 12, color: AppColors.amber),
                             const SizedBox(width: 6),
-                            Text('Cantidad', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                            Text('Cantidad', style: TextStyle(color: AppColors.textOnDark, fontSize: 12)),
                           ],
                         ),
                       ],
@@ -2994,7 +3049,6 @@ class TelaMapa extends StatefulWidget {
 }
 
 class _TelaMapaState extends State<TelaMapa> {
-  static const Color _verde = Color(0xFF1E5631);
   static const LatLng _centroObra = LatLng(19.4517, -70.6970);
   LatLng _posicaoCentral = _centroObra;
   bool _modoSatelite = false;
@@ -3045,8 +3099,6 @@ class _TelaMapaState extends State<TelaMapa> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.modoSelecao ? 'Seleccionar Local en el Mapa' : 'MAPA'),
-        backgroundColor: _verde,
-        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
@@ -3060,10 +3112,10 @@ class _TelaMapaState extends State<TelaMapa> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: !_modoSatelite ? Colors.grey[700] : Colors.grey[800],
+                        color: !_modoSatelite ? AppColors.green600 : AppColors.green700,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Center(child: Text('Mapa', style: TextStyle(color: !_modoSatelite ? Colors.white : Colors.grey[500]))),
+                      child: Center(child: Text('Mapa', style: TextStyle(color: !_modoSatelite ? Colors.white : AppColors.green500))),
                     ),
                   ),
                 ),
@@ -3074,10 +3126,10 @@ class _TelaMapaState extends State<TelaMapa> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: _modoSatelite ? Colors.grey[700] : Colors.grey[800],
+                        color: _modoSatelite ? AppColors.green600 : AppColors.green700,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Center(child: Text('Satélite', style: TextStyle(color: _modoSatelite ? Colors.white : Colors.grey[500]))),
+                      child: Center(child: Text('Satélite', style: TextStyle(color: _modoSatelite ? Colors.white : AppColors.green500))),
                     ),
                   ),
                 ),
@@ -3109,7 +3161,7 @@ class _TelaMapaState extends State<TelaMapa> {
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 35),
                     child: IgnorePointer(
-                      child: Icon(Icons.location_on, color: Colors.red, size: 50),
+                      child: Icon(Icons.location_on, color: AppColors.terracotta, size: 50),
                     ),
                   ),
                 ),
@@ -3125,7 +3177,7 @@ class _TelaMapaState extends State<TelaMapa> {
                         icon: const Icon(Icons.check, size: 20),
                         label: const Text('CONFIRMAR ESTE LOCAL', style: TextStyle(fontSize: 13)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _verde,
+                          backgroundColor: AppColors.green700,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                         ),
@@ -3139,7 +3191,7 @@ class _TelaMapaState extends State<TelaMapa> {
                   right: 16,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: AppColors.green900, borderRadius: BorderRadius.circular(8)),
                     child: Text(
                       'Toque el mapa para marcar o arrastre para posicionar el marcador. Luego confirme.',
                       style: const TextStyle(color: Colors.white, fontSize: 12),
