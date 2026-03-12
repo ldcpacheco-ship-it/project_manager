@@ -12,7 +12,7 @@ var SHEET_DEMANDAS = "Respuestas del Form";
 var COL_ALIASES = {
   tema: ['requerimiento', 'tema', 'título', 'titulo', 'tipo de demanda'],
   sector: ['secctor solicitante', 'sector solicitante', 'sector', 'setor', 'setor solicitante'],
-  sector_destino: ['sector de destino', 'sector destino', 'destino', 'setor destino'],
+  sector_destino: ['sector de destino', 'sector destino', 'destino', 'setor destino', 'setor de destino', 'área de destino', 'area de destino'],
   solicitante: ['solicitante', 'nombre', 'nome solicitante'],
   email_solicitante: ['email_solicitante', 'email solicitante', 'correo solicitante', 'e-mail solicitante'],
   requerimiento: ['requerimiento', 'requisito', 'descripcion'],
@@ -710,15 +710,17 @@ function tipoFiltroDemandas(perfil) {
   return 'por_solicitante';
 }
 
-function getDemandas(sector, email, perfil, responsable) {
+/** Retorna array de demandas filtrado por sector de destino e perfil (lógica interna reutilizada) */
+function _getDemandasArray(sector, email, perfil, responsable) {
   var r = getDemandasSheet();
-  if (!r.data.length) return responderPadrao(true, '', { demandas: [] });
+  if (!r.data.length) return [];
   var m = r.headerMap;
   var data = r.data;
   var colTema = getCol(m, ['tema']);
   var colTipo = getCol(m, ['tipo']);
   var colLocal = getCol(m, ['local']);
   var colSector = getCol(m, ['sector']);
+  var colSectorDestino = getCol(m, ['sector_destino']);
   var colSolicitante = getCol(m, ['solicitante']);
   var colEmail = getCol(m, ['email_solicitante']);
   var colReq = getCol(m, ['requerimiento']);
@@ -734,10 +736,16 @@ function getDemandas(sector, email, perfil, responsable) {
   var filtro = tipoFiltroDemandas(perfil);
   var emailNorm = (filtro === 'por_solicitante' && email) ? String(email).trim().toLowerCase() : '';
   var respNorm = (filtro === 'por_responsable' && responsable) ? String(responsable).trim() : '';
+  var normalizarTexto = function(s) {
+    var t = String(s || '').trim().toLowerCase();
+    return t.replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/ñ/g,'n');
+  };
   var out = [];
   for (var i = 0; i < data.length; i++) {
-    var rowSector = colSector >= 0 ? String(data[i][colSector] || '').toLowerCase() : '';
-    if (sector && rowSector.indexOf(sector.toLowerCase()) < 0) continue;
+    if (colSectorDestino >= 0 && sector) {
+      var rowDestino = String(data[i][colSectorDestino] || '').trim();
+      if (normalizarTexto(rowDestino).indexOf(normalizarTexto(sector)) < 0) continue;
+    }
     if (filtro === 'por_solicitante' && emailNorm) {
       var solEmail = (colEmail >= 0 ? data[i][colEmail] : data[i][colSolicitante]) || '';
       if (String(solEmail).trim().toLowerCase() !== emailNorm) continue;
@@ -770,44 +778,42 @@ function getDemandas(sector, email, perfil, responsable) {
       requerimiento: (colReq >= 0 ? data[i][colReq] : '').toString()
     });
   }
+  return out;
+}
+
+function getDemandas(sector, email, perfil, responsable) {
+  var out = _getDemandasArray(sector, email, perfil, responsable);
   return responderPadrao(true, '', { demandas: out });
 }
 
 function getDemandasGestion(sector, perfil, email, responsable) {
+  var demandasCompletas = _getDemandasArray(sector, email, perfil, responsable);
   var r = getDemandasSheet();
   if (!r.data.length) return responderPadrao(true, '', { demandas: [] });
   var m = r.headerMap;
   var data = r.data;
-  var colTema = getCol(m, ['tema']);
   var colResp = getCol(m, ['responsable']);
-  var colSolicitante = getCol(m, ['solicitante']);
-  var colEmail = getCol(m, ['email_solicitante']);
-  var colStatus = getCol(m, ['status']);
-  var colSector = getCol(m, ['sector']);
   var colBrigada = getCol(m, ['brigada']);
-  if (colTema < 0) colTema = 1;
+  var colStatus = getCol(m, ['status']);
   if (colResp < 0) colResp = 9;
-  if (colEmail < 0) colEmail = colSolicitante;
-  if (colSolicitante < 0) colSolicitante = colSector;
   if (colStatus < 0) colStatus = 16;
   if (colBrigada < 0) colBrigada = 15;
   var filtro = tipoFiltroDemandas(perfil);
-  var emailNorm = (filtro === 'por_solicitante' && email) ? String(email).trim().toLowerCase() : '';
   var out = [];
-  for (var i = 0; i < data.length; i++) {
-    var st = String(data[i][colStatus] || '').toLowerCase();
+  for (var i = 0; i < demandasCompletas.length; i++) {
+    var idx = demandasCompletas[i].index;
+    if (idx == null || idx === undefined) continue;
+    var rowIdx = idx - (DATA_START_ROW - 1);
+    if (rowIdx < 0 || rowIdx >= data.length) continue;
+    var row = data[rowIdx];
+    var st = String(row[colStatus] || '').toLowerCase();
     if (st === 'resuelto' || st.indexOf('cancel') >= 0 || st.indexOf('reprogram') >= 0) continue;
-    var brigada = String(data[i][colBrigada] || '').trim();
+    var brigada = String(row[colBrigada] || '').trim();
     if (brigada !== '' && brigada !== 'undefined') continue;
-    var resp = String(data[i][colResp] || '').trim();
+    var resp = String(row[colResp] || '').trim();
     if (resp !== '' && resp !== 'undefined') continue;
-    if (colSector >= 0 && sector && String(data[i][colSector] || '').toLowerCase().indexOf(sector.toLowerCase()) < 0) continue;
-    if (filtro === 'por_solicitante' && emailNorm) {
-      var solEmail = (colEmail >= 0 ? data[i][colEmail] : data[i][colSolicitante]) || '';
-      if (String(solEmail).trim().toLowerCase() !== emailNorm) continue;
-    }
     if (filtro === 'por_responsable') continue;
-    out.push({ id: DATA_START_ROW + i, tema: (data[i][colTema] || '').toString(), index: DATA_START_ROW + i - 1 });
+    out.push(demandasCompletas[i]);
   }
   return responderPadrao(true, '', { demandas: out });
 }
@@ -828,6 +834,7 @@ function getDemandasAgenda(sector, email, perfil, responsable) {
   var colDur = getCol(m, ['duracion']);
   var colStatus = getCol(m, ['status']);
   var colSector = getCol(m, ['sector']);
+  var colSectorDestino = getCol(m, ['sector_destino']);
   if (colTema < 0) colTema = 1;
   if (colResp < 0) colResp = 9;
   if (colEmail < 0) colEmail = colSolicitante;
@@ -837,8 +844,16 @@ function getDemandasAgenda(sector, email, perfil, responsable) {
   var filtro = tipoFiltroDemandas(perfil);
   var emailNorm = (filtro === 'por_solicitante' && email) ? String(email).trim().toLowerCase() : '';
   var respNorm = (filtro === 'por_responsable' && responsable) ? String(responsable).trim() : '';
+  var normalizarTexto = function(s) {
+    var t = String(s || '').trim().toLowerCase();
+    return t.replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/ñ/g,'n');
+  };
   var out = [];
   for (var i = 0; i < data.length; i++) {
+    if (colSectorDestino >= 0 && sector) {
+      var rowDestino = String(data[i][colSectorDestino] || '').trim();
+      if (normalizarTexto(rowDestino).indexOf(normalizarTexto(sector)) < 0) continue;
+    }
     var resp = String(data[i][colResp] || '').trim();
     if (!resp || resp === 'undefined') continue;
     if (filtro === 'por_solicitante' && emailNorm) {
@@ -850,7 +865,6 @@ function getDemandasAgenda(sector, email, perfil, responsable) {
     }
     var dur = colDur >= 0 ? data[i][colDur] : (data[i][colHora] ? 1 : null);
     if (!dur) continue;
-    if (colSector >= 0 && sector && String(data[i][colSector] || '').toLowerCase().indexOf(sector.toLowerCase()) < 0) continue;
     var d = data[i][colData];
     if (!d) continue;
     try {
@@ -887,11 +901,18 @@ function getKPIs(sector) {
     var data = r.data;
     var colResp = getCol(m, ['responsable']);
     var colStatus = getCol(m, ['status']);
-    var colSector = getCol(m, ['sector']);
+    var colSectorDestino = getCol(m, ['sector_destino']);
+    var normalizarTexto = function(s) {
+      var t = String(s || '').trim().toLowerCase();
+      return t.replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/ñ/g,'n');
+    };
     if (colResp < 0) colResp = 9;
     if (colStatus < 0) colStatus = 16;
     for (var i = 0; i < data.length; i++) {
-      if (colSector >= 0 && sector && String(data[i][colSector] || '').toLowerCase().indexOf(sector.toLowerCase()) < 0) continue;
+      if (colSectorDestino >= 0 && sector) {
+        var rowDestino = String(data[i][colSectorDestino] || '').trim();
+        if (normalizarTexto(rowDestino).indexOf(normalizarTexto(sector)) < 0) continue;
+      }
       total++;
       var st = String(data[i][colStatus] || '').toLowerCase();
       if (st === 'resuelto') resolvidas++;
@@ -909,8 +930,12 @@ function getOcupacaoParaSlot(dataStr, horaStr, sector) {
   var m = r.headerMap;
   var colData = getCol(m, ['fecha_necesaria']);
   var colHora = getCol(m, ['hora']);
-  var colSector = getCol(m, ['sector']);
+  var colSectorDestino = getCol(m, ['sector_destino']);
   var colStatus = getCol(m, ['status']);
+  var normalizarTexto = function(s) {
+    var t = String(s || '').trim().toLowerCase();
+    return t.replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/ñ/g,'n');
+  };
   if (colData < 0) colData = 11;
   if (colHora < 0) colHora = 12;
   if (colStatus < 0) colStatus = 16;
@@ -919,7 +944,10 @@ function getOcupacaoParaSlot(dataStr, horaStr, sector) {
   else if (horaKey.length === 4 && horaKey.indexOf(':') === 1) horaKey = '0' + horaKey;
   var count = 0;
   for (var i = 0; i < r.data.length; i++) {
-    if (colSector >= 0 && sector && String(r.data[i][colSector] || '').toLowerCase().indexOf(sector.toLowerCase()) < 0) continue;
+    if (colSectorDestino >= 0 && sector) {
+      var rowDestino = String(r.data[i][colSectorDestino] || '').trim();
+      if (normalizarTexto(rowDestino).indexOf(normalizarTexto(sector)) < 0) continue;
+    }
     var st = String(r.data[i][colStatus] || '').toLowerCase();
     if (st === 'cancelada' || st === 'reprogramada') continue;
     var d = r.data[i][colData];
@@ -1096,13 +1124,20 @@ function getOcupacaoBrigadas(sector) {
     var m = r.headerMap;
     var colData = getCol(m, ['fecha_necesaria']);
     var colHora = getCol(m, ['hora']);
-    var colSector = getCol(m, ['sector']);
+    var colSectorDestino = getCol(m, ['sector_destino']);
     var colStatus = getCol(m, ['status']);
+    var normalizarTexto = function(s) {
+      var t = String(s || '').trim().toLowerCase();
+      return t.replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/ñ/g,'n');
+    };
     if (colData < 0) colData = 11;
     if (colHora < 0) colHora = 12;
     if (colStatus < 0) colStatus = 16;
     for (var i = 0; i < r.data.length; i++) {
-      if (colSector >= 0 && sector && String(r.data[i][colSector] || '').toLowerCase().indexOf(sector.toLowerCase()) < 0) continue;
+      if (colSectorDestino >= 0 && sector) {
+        var rowDestino = String(r.data[i][colSectorDestino] || '').trim();
+        if (normalizarTexto(rowDestino).indexOf(normalizarTexto(sector)) < 0) continue;
+      }
       var st = String(r.data[i][colStatus] || '').toLowerCase();
       if (st === 'cancelada') continue;
       var d = r.data[i][colData];

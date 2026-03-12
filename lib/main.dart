@@ -578,6 +578,7 @@ class _TelaLoginState extends State<TelaLogin> {
                     height: 52,
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _realizarLogin,
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.green700),
                       child: _isLoading 
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : const Text('ACCEDER', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1)),
@@ -1333,7 +1334,7 @@ class TelaSubMenu extends StatelessWidget {
               borderRadius: BorderRadius.circular(15),
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.green700,
+                  color: AppColors.gray600,
                   borderRadius: BorderRadius.circular(15),
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
@@ -2467,7 +2468,7 @@ class TelaGestion extends StatelessWidget {
             itemCount: demandas.length,
             itemBuilder: (context, i) {
               final d = demandas[i];
-              final tema = (d['tema'] ?? d['titulo'] ?? '').toString();
+              final local = (d['local'] ?? d['tema'] ?? d['titulo'] ?? '').toString();
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 color: AppColors.gray600,
@@ -2484,7 +2485,7 @@ class TelaGestion extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
-                        Expanded(child: Text(tema, style: const TextStyle(color: AppColors.gray200, fontSize: 16, fontWeight: FontWeight.w500))),
+                        Expanded(child: Text(local, style: const TextStyle(color: AppColors.gray200, fontSize: 16, fontWeight: FontWeight.w500))),
                         ElevatedButton.icon(
                         onPressed: () => _mostrarFormProgramar(context, d),
                         icon: const Icon(Icons.schedule, size: 18),
