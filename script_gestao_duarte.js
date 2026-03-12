@@ -1,14 +1,14 @@
 /**
  * GESTÃO DUARTE - API UNIFICADA (FLUTTER + GOOGLE SHEETS)
- * Versão: 1.2 - Mapeamento robusto, contrato JSON, login POST
+ * Versão: 1.3 - Correção de Mapeamento de Colunas e Carimbo de Data
  */
 
 // --- CONSTANTES ABA "Respuestas del Form" ---
 var HEADER_ROW = 6;
 var DATA_START_ROW = HEADER_ROW + 1;
+var SHEET_DEMANDAS = "Respuestas del Form";
 
 // --- ALIASES DE COLUNAS (compatíveis com "Respuestas del Form") ---
-// Colunas exatas: Carimbo de data/hora | Tipo de Demanda | Sector de Destino | Secctor Solicitante | Solicitante | Requerimiento | Local | Coordenadas | Estatus Técnico | Responsable | Prioridad | Fecha Necesaria | Hora Necessaria | Duracion Estimada | Hora Fin | Brigada Topografica | Estatus Actual
 var COL_ALIASES = {
   tema: ['requerimiento', 'tema', 'título', 'titulo', 'tipo de demanda'],
   sector: ['secctor solicitante', 'sector solicitante', 'sector', 'setor', 'setor solicitante'],
@@ -71,6 +71,45 @@ function getColHoraNecessaria(header) {
       return i;
   }
   return 7;
+}
+
+/** Retorna o valor de dados para uma chave de COL_ALIASES. Hora e tema com prioridade; demais com fallbacks. */
+function getDadosVal(key, dados) {
+  var v = '';
+  if (key === 'hora') {
+    v = dados.hora || dados.hora_inicio || '';
+  } else if (key === 'tema') {
+    v = dados.tipo_demanda || dados.tipoDemanda || dados.tema || 'Nueva demanda';
+  } else if (key === 'status') {
+    v = (dados.status && String(dados.status).trim() !== '') ? String(dados.status).trim() : 'No Programada';
+  } else if (key === 'sector') {
+    v = dados.sectorSolicitante || dados.sector || '';
+  } else if (key === 'sector_destino') {
+    v = dados.sectorDestino || dados.sector_destino || '';
+  } else if (key === 'tipo') {
+    v = dados.tipo_demanda || dados.tipoDemanda || dados.tema || '';
+  } else if (key === 'fecha_necesaria') {
+    v = dados.fecha_necesaria || dados.fechaNecesaria || '';
+  } else if (key === 'requerimiento') {
+    v = dados.requerimiento || '';
+  } else if (key === 'local') {
+    v = dados.local || '';
+  } else if (key === 'solicitante') {
+    v = dados.solicitante || '';
+  } else if (key === 'responsable') {
+    v = dados.responsable || '';
+  } else if (key === 'duracion') {
+    v = dados.duracion || '';
+  } else if (key === 'coordenada') {
+    v = dados.coordenadas || dados.coordenada || '';
+  } else if (key === 'hora_fin') {
+    v = dados.horaFin || dados.hora_fin || '';
+  } else if (key === 'id_anterior') {
+    v = dados.idDemandaAnterior || dados.id_anterior || '';
+  } else {
+    v = dados[key] || '';
+  }
+  return v;
 }
 
 // --- 1. PORTA DE ENTRADA (Comunicação com Flutter) ---
@@ -354,7 +393,7 @@ function processarPrioridadesOrdenacao() {
   if (colStatus < 0) colStatus = 16;
   if (colTema < 0) colTema = 1;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Respuestas del Form");
+  var sheet = ss.getSheetByName(SHEET_DEMANDAS);
   var data = r.data;
   var tarefasPorResp = {};
   for (var i = 0; i < data.length; i++) {
@@ -389,7 +428,7 @@ function processarPrioridadesOrdenacao() {
 
 function getDemandasSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Respuestas del Form");
+  var sheet = ss.getSheetByName(SHEET_DEMANDAS);
   if (!sheet) return { data: [], header: [], headerMap: {} };
   var lastRow = sheet.getLastRow();
   var lastCol = Math.max(sheet.getLastColumn(), 1);
@@ -646,86 +685,28 @@ function getOcupacaoParaSlot(dataStr, horaStr, sector) {
 
 function salvarDemanda(dados) {
   try {
-    var r = getDemandasSheet();
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("Respuestas del Form");
+    var sheet = ss.getSheetByName(SHEET_DEMANDAS);
     if (!sheet) return responderPadrao(false, "Hoja no encontrada", null);
-    var header = r.header;
-    var m = r.headerMap;
-    var row = [];
-    for (var c = 0; c < header.length; c++) row.push('');
-    // Valor do Carimbo (coluna A): data/hora do envio; será reaplicado ao final
-    var carimboValue = new Date();
-    if (dados.carimbo && String(dados.carimbo).trim()) {
-      try {
-        var s = String(dados.carimbo).trim();
-        var partes = s.split(' ');
-        var dataPart = partes[0] ? partes[0].split('/') : [];
-        var horaPart = (partes[1] || '00:00:00').split(':');
-        if (dataPart.length >= 3) {
-          var ano = parseInt(dataPart[2], 10);
-          var mes = parseInt(dataPart[1], 10) - 1;
-          var dia = parseInt(dataPart[0], 10);
-          var h = parseInt(horaPart[0] || '0', 10);
-          var min = parseInt(horaPart[1] || '0', 10);
-          var seg = parseInt(horaPart[2] || '0', 10);
-          carimboValue = new Date(ano, mes, dia, h, min, seg);
-        }
-      } catch (_) {}
-    }
-    row[0] = carimboValue;
-    var colTema = getCol(m, ['tema']);
-    if (colTema >= 0) row[colTema] = dados.tema || dados.tipoDemanda || dados.requerimiento || 'Nueva demanda';
-    var colSec = getCol(m, ['sector']);
-    if (colSec >= 0) row[colSec] = dados.sectorSolicitante || dados.sector || '';
-    var colSol = getCol(m, ['solicitante']);
-    if (colSol >= 0) row[colSol] = dados.solicitante || '';
-    var colDest = getCol(m, ['sector_destino']);
-    if (colDest >= 0) row[colDest] = dados.sectorDestino || '';
-    var colTipo = getCol(m, ['tipo']);
-    if (colTipo >= 0) row[colTipo] = dados.tipoDemanda || '';
-    var colLocal = getCol(m, ['local']);
-    if (colLocal >= 0) row[colLocal] = dados.local || '';
-    var colReq = getCol(m, ['requerimiento']);
-    if (colReq >= 0) row[colReq] = dados.requerimiento || '';
-    var colFecha = getCol(m, ['fecha_necesaria']);
-    if (colFecha >= 0 && dados.fechaNecesaria) {
-      try {
-        var parts = String(dados.fechaNecesaria).split('/');
-        if (parts.length === 3) row[colFecha] = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-        else row[colFecha] = dados.fechaNecesaria;
-      } catch (_) { row[colFecha] = dados.fechaNecesaria; }
-    }
-    // Coluna "Hora Necessaria": valor do campo "Hora inicio" do formulário (chaves: horaInicio, horaNecesaria, hora)
-    var horaNecesariaVal = (dados.horaInicio || dados.horaNecesaria || dados.hora || '').toString().trim();
-    var colHoraNecessaria = getColHoraNecessaria(header);
-    row[colHoraNecessaria] = horaNecesariaVal;
-    var colResp = getCol(m, ['responsable']);
-    if (colResp >= 0) row[colResp] = dados.responsable || '';
-    var colDur = getCol(m, ['duracion']);
-    if (colDur >= 0) row[colDur] = dados.duracion || '';
-    var colRef = getCol(m, ['id_anterior']);
-    if (colRef >= 0 && dados.idDemandaAnterior) row[colRef] = dados.idDemandaAnterior;
-    var colCoord = getCol(m, ['coordenada']);
-    if (colCoord >= 0 && dados.coordenadas) row[colCoord] = dados.coordenadas;
-    var colStatus = getCol(m, ['status']);
-    var statusFinal = (dados.status && String(dados.status).trim() !== '') ? String(dados.status).trim() : 'No Programada';
-    if (colStatus >= 0) row[colStatus] = statusFinal;
-    var colHoraFin = getCol(m, ['hora_fin']);
-    if (colHoraFin >= 0 && dados.horaFin) row[colHoraFin] = dados.horaFin;
+
+    var lastCol = Math.max(sheet.getLastColumn(), 1);
+    var headers = sheet.getRange(HEADER_ROW, 1, HEADER_ROW, lastCol).getValues()[0];
+
+    var horaVal = (dados.hora || dados.hora_inicio || '').toString().trim();
     var dataStr = '';
-    var horaStr = horaNecesariaVal;
-    if (horaStr.length >= 5) horaStr = horaStr.substring(0, 5);
-    else if (horaStr.length === 4 && horaStr.indexOf(':') > 0) horaStr = '0' + horaStr;
     try {
-      if (dados.fechaNecesaria) {
-        var parts = String(dados.fechaNecesaria).split('/');
+      var fn = String(dados.fecha_necesaria || dados.fechaNecesaria || '');
+      if (fn) {
+        var parts = fn.split('/');
         if (parts.length === 3) {
           var d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
           if (!isNaN(d.getTime())) dataStr = Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy');
         }
       }
     } catch (_) {}
+    var horaStr = horaVal;
+    if (horaStr.length >= 5) horaStr = horaStr.substring(0, 5);
+    else if (horaStr.length === 4 && horaStr.indexOf(':') > 0) horaStr = '0' + horaStr;
     var sector = (dados.sectorSolicitante || dados.sector || '').toString().trim();
     if (!dataStr || !horaStr) {
       return responderPadrao(false, "Fecha y hora son obligatorios para validar disponibilidad.", null);
@@ -734,10 +715,40 @@ function salvarDemanda(dados) {
     if (ocupacao >= 4) {
       return responderPadrao(false, "Límite de 4 brigadas alcanzado para este horario.", null);
     }
-    // Coluna A ("Carimbo de data/hora"): sempre data/hora do envio (explícito)
-    row[0] = carimboValue;
+
+    var row = [];
+    for (var i = 0; i < headers.length; i++) {
+      var header = String(headers[i] || '').toLowerCase().trim();
+
+      if (i === 0 || header.indexOf('carimbo') >= 0) {
+        row.push(new Date());
+        continue;
+      }
+
+      if (header === 'hora necessaria' || header === 'hora necesaria') {
+        row.push(horaVal);
+        continue;
+      }
+
+      var val = '';
+      for (var key in COL_ALIASES) {
+        if (!COL_ALIASES.hasOwnProperty(key)) continue;
+        if (COL_ALIASES[key].indexOf(header) >= 0) {
+          val = getDadosVal(key, dados);
+          if (key === 'fecha_necesaria' && val && typeof val === 'string') {
+            try {
+              var p = String(val).split('/');
+              if (p.length === 3) val = new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+            } catch (_) {}
+          }
+          break;
+        }
+      }
+      row.push(val);
+    }
+
     sheet.appendRow(row);
-    return responderPadrao(true, "Demanda creada", null);
+    return responderPadrao(true, "Demanda gravada con éxito", null);
   } catch (err) {
     return responderPadrao(false, err.toString(), null);
   }
@@ -763,7 +774,7 @@ function marcarDemandaComoReprogramada(idStr) {
     var m = r.headerMap;
     var colStatus = getCol(m, ['status']);
     if (colStatus < 0) colStatus = 16;
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Respuestas del Form");
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_DEMANDAS);
     if (!sheet) return;
     sheet.getRange(idNum, colStatus + 1).setValue('Reprogramada');
   } catch (e) { /* log silencioso */ }

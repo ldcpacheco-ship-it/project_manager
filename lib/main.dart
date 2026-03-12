@@ -1248,21 +1248,17 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
     }
 
     setState(() => _enviando = true);
-    final now = DateTime.now();
-    final carimbo = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
-    final horaInicioVal = _horaInicioCtrl.text.trim();
+    // Carimbo não é enviado; o script define a coluna A com new Date(). Use "hora" para a coluna "Hora Necesaria".
     final dados = <String, dynamic>{
-      'carimbo': carimbo,
-      'sectorSolicitante': _sectorSolicitante ?? '',
-      'solicitante': _solicitanteCtrl.text.trim(),
-      'sectorDestino': _sectorDestino ?? '',
-      'tipoDemanda': _tipoDemanda ?? '',
-      'local': (_local == _opcaoMapa || _local == _localMapa) ? '' : (_local ?? ''),
-      'coordenadas': _controllerCoordenadas.text.trim(),
+      'hora': _horaInicioCtrl.text.trim(),
+      'tipo_demanda': _tipoDemanda ?? '',
+      'fecha_necesaria': _fechaNecesariaCtrl.text.trim(),
+      'sector_destino': _sectorDestino ?? '',
       'requerimiento': _requerimientoCtrl.text.trim(),
-      'fechaNecesaria': _fechaNecesariaCtrl.text.trim(),
-      'horaInicio': horaInicioVal,
-      'horaNecesaria': horaInicioVal,
+      'local': (_local == _opcaoMapa || _local == _localMapa) ? '' : (_local ?? ''),
+      'solicitante': _solicitanteCtrl.text.trim(),
+      'sectorSolicitante': _sectorSolicitante ?? '',
+      'coordenadas': _controllerCoordenadas.text.trim(),
       'status': widget.esReprogramacion ? '' : 'No Programada',
       'horaFin': _calcularHoraFin(),
       'responsable': isPerfilGestion(widget.usuario) ? _responsavelCtrl.text.trim() : '',
