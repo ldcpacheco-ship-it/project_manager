@@ -57,45 +57,13 @@ Future<Map<String, dynamic>> _httpGet(String url) async {
   }
 }
 
-/// Na Web, usa GET com base64 para evitar CORS. No mobile, usa POST com JSON.
+/// Usa GET com base64 em todas as plataformas: evita CORS na web e evita 302 em POST no mobile
+/// (Apps Script sempre redireciona POST para 302, e o cliente pode tratar como erro)
 Future<Map<String, dynamic>> _httpPost(String url, Map<String, dynamic> body) async {
   try {
-    if (kIsWeb) {
-      final b64 = base64Url.encode(utf8.encode(json.encode(body)));
-      final getUrl = '$url?action=${Uri.encodeComponent((body['action'] ?? '').toString())}&payload=$b64';
-      return _httpGet(getUrl);
-    }
-    final r = await http.post(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(body),
-    ).timeout(const Duration(seconds: 30));
-    if (r.statusCode != 200) {
-      debugPrint('HTTP POST $url status ${r.statusCode} body: ${r.body}');
-      String msg = 'Error de conexión';
-      if (r.statusCode == 404) {
-        msg = 'Servidor no encontrado (404). Verifique que el script de Google Apps esté desplegado correctamente.';
-      } else if (r.statusCode == 500) {
-        msg = 'Error del servidor (500). Revise el backend de Google Apps Script.';
-      } else if (r.statusCode >= 400) {
-        msg = 'Error de conexión (código ${r.statusCode}).';
-      }
-      return {'success': false, 'message': msg, 'data': null};
-    }
-    dynamic j;
-    try {
-      j = json.decode(r.body);
-    } catch (_) {
-      debugPrint('HTTP POST: respuesta no es JSON válido: ${r.body}');
-      return {'success': false, 'message': 'Respuesta inválida del servidor.', 'data': null};
-    }
-    if (j is Map<String, dynamic>) {
-      if (j.containsKey('success')) {
-        return {'success': j['success'] == true, 'message': (j['message'] ?? '').toString(), 'data': j['data']};
-      }
-      return {'success': j['status'] == 'success', 'message': (j['message'] ?? '').toString(), 'data': j};
-    }
-    return {'success': false, 'message': 'Respuesta inválida del servidor.', 'data': null};
+    final b64 = base64Url.encode(utf8.encode(json.encode(body)));
+    final getUrl = '$url?action=${Uri.encodeComponent((body['action'] ?? '').toString())}&payload=$b64';
+    return _httpGet(getUrl);
   } catch (e, st) {
     debugPrint('HTTP POST error: $e\n$st');
     String msg = 'Error de conexión. Verifique su conexión a internet.';
@@ -246,6 +214,28 @@ void showOfflineDialog(BuildContext context) {
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
       ],
+    ),
+  );
+}
+
+/// Mensagem de sucesso/erro harmoniosa com o design do app (contraste legível).
+void _mostrarFeedback(BuildContext context, String texto, {bool sucesso = true}) {
+  const verde = Color(0xFF87A854); // verde suave para feedback
+  final bg = sucesso ? verde : const Color(0xFF8B3A3A); // verde escuro | vermelho escuro
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          Icon(sucesso ? Icons.check_circle : Icons.info_outline, color: Colors.white, size: 22),
+          const SizedBox(width: 12),
+          Expanded(child: Text(texto, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500))),
+        ],
+      ),
+      backgroundColor: bg,
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      duration: const Duration(seconds: 3),
     ),
   );
 }
@@ -1258,7 +1248,10 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
     }
 
     setState(() => _enviando = true);
+    final now = DateTime.now();
+    final carimbo = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
     final dados = <String, dynamic>{
+      'carimbo': carimbo,
       'sectorSolicitante': _sectorSolicitante ?? '',
       'solicitante': _solicitanteCtrl.text.trim(),
       'sectorDestino': _sectorDestino ?? '',
@@ -1285,12 +1278,12 @@ class _TelaFormSolicitarState extends State<TelaFormSolicitar> {
     setState(() => _enviando = false);
     if (!mounted) return;
     if (res['ok'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Demanda enviada correctamente'), backgroundColor: _verde));
+      _mostrarFeedback(context, 'Demanda enviada correctamente', sucesso: true);
       Navigator.pop(context);
     } else {
       final msg = (res['message'] ?? '').toString();
       if (msg.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+        _mostrarFeedback(context, msg, sucesso: false);
       } else {
         showOfflineDialog(context);
       }
@@ -1632,7 +1625,7 @@ class TelaDetalleDemanda extends StatelessWidget {
     final success = await crearDemandaCancelada(dados);
     if (!context.mounted) return;
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Demanda cancelada'), backgroundColor: _verde));
+      _mostrarFeedback(context, 'Demanda cancelada', sucesso: true);
       Navigator.pop(context);
     } else {
       showOfflineDialog(context);

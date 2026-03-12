@@ -18,7 +18,7 @@ var COL_ALIASES = {
   requerimiento: ['requerimiento', 'requisito', 'descripcion'],
   responsable: ['responsable', 'responsavel', 'responsable asignado'],
   fecha_necesaria: ['fecha necesaria', 'fecha necessaria', 'fecha', 'date'],
-  hora: ['hora necessaria', 'hora necesaria', 'hora', 'hora inicio', 'time'],
+  hora: ['hora necessaria', 'hora necesaria', 'hora inicio', 'hora', 'time'],
   duracion: ['duracion estimada', 'duración', 'duracion'],
   status: ['estatus actual', 'status', 'estado', 'estatus'],
   brigada: ['brigada topografica', 'brigada', 'equipe'],
@@ -40,6 +40,8 @@ function buildHeaderMap(header) {
       if (COL_ALIASES.hasOwnProperty(key)) {
         for (var a = 0; a < COL_ALIASES[key].length; a++) {
           if (n.indexOf(COL_ALIASES[key][a]) >= 0 || COL_ALIASES[key][a].indexOf(n) >= 0) {
+            // Evitar que "Carimbo de data/hora" (col. A) seja mapeada como "Hora Necessaria"
+            if (key === 'hora' && n.indexOf('carimbo') >= 0) break;
             if (m[key] === undefined) m[key] = h;
             break;
           }
@@ -640,7 +642,30 @@ function salvarDemanda(dados) {
     var m = r.headerMap;
     var row = [];
     for (var c = 0; c < header.length; c++) row.push('');
-    row[0] = new Date();
+    // Coluna 0: Carimbo de data/hora do envio (vem do dispositivo)
+    if (dados.carimbo && String(dados.carimbo).trim()) {
+      try {
+        var s = String(dados.carimbo).trim();
+        var partes = s.split(' ');
+        var dataPart = partes[0] ? partes[0].split('/') : [];
+        var horaPart = (partes[1] || '00:00:00').split(':');
+        if (dataPart.length >= 3) {
+          var ano = parseInt(dataPart[2], 10);
+          var mes = parseInt(dataPart[1], 10) - 1;
+          var dia = parseInt(dataPart[0], 10);
+          var h = parseInt(horaPart[0] || '0', 10);
+          var min = parseInt(horaPart[1] || '0', 10);
+          var seg = parseInt(horaPart[2] || '0', 10);
+          row[0] = new Date(ano, mes, dia, h, min, seg);
+        } else {
+          row[0] = new Date();
+        }
+      } catch (_) {
+        row[0] = new Date();
+      }
+    } else {
+      row[0] = new Date();
+    }
     var colTema = getCol(m, ['tema']);
     if (colTema >= 0) row[colTema] = dados.tema || dados.tipoDemanda || dados.requerimiento || 'Nueva demanda';
     var colSec = getCol(m, ['sector']);
@@ -664,6 +689,18 @@ function salvarDemanda(dados) {
       } catch (_) { row[colFecha] = dados.fechaNecesaria; }
     }
     var colHora = getCol(m, ['hora']);
+    // Se colHora === 0, é Carimbo; buscar coluna "Hora Necessaria" explicitamente
+    if (colHora === 0) {
+      colHora = -1;
+      for (var hi = 0; hi < header.length; hi++) {
+        var hn = String(header[hi] || '').trim().toLowerCase();
+        if (hn.indexOf('carimbo') >= 0) continue;
+        if ((hn.indexOf('hora necessaria') >= 0 || hn.indexOf('hora necesaria') >= 0 || hn.indexOf('hora inicio') >= 0)) {
+          colHora = hi;
+          break;
+        }
+      }
+    }
     if (colHora >= 0) row[colHora] = dados.horaInicio || '';
     var colResp = getCol(m, ['responsable']);
     if (colResp >= 0) row[colResp] = dados.responsable || '';
