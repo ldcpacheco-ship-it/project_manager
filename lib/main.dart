@@ -2634,14 +2634,14 @@ class _TelaAgendaState extends State<TelaAgenda> {
                   const SizedBox(height: 16),
                   const Text('Cuadrícula de horarios (Semáforo Brigadas)', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text('0-3 brigadas: Disponible (Verde)  |  4 brigadas: NO DISPONIBLE - Límite alcanzado (Rojo)', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                  Text('0-3 brigadas: Disponible (Gris)  |  4 brigadas: NO DISPONIBLE - Límite alcanzado (Rojo)', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                   const SizedBox(height: 12),
                   ...slots.map((s) {
                     final occ = s['ocupacao'] as int;
                     final disp = occ < 4;
                     return Card(
                       margin: const EdgeInsets.only(bottom: 6),
-                      color: disp ? AppColors.green600 : AppColors.terracotta.withOpacity(0.5),
+                      color: disp ? AppColors.gray600 : AppColors.terracotta.withOpacity(0.5),
                       child: ListTile(
                         title: Text('${s['hora']} - ${s['ocupacao']}/4 brigadas', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
                         trailing: Text(disp ? 'Disponible' : 'NO DISPONIBLE - Límite alcanzado', style: TextStyle(color: disp ? Colors.white : AppColors.terracotta, fontWeight: FontWeight.bold, fontSize: 12)),

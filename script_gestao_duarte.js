@@ -385,6 +385,8 @@ function solicitarResetSenha(emailBuscado) {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheetUsu = ss.getSheetByName("Usuarios") || ss.getSheetByName("Usuários");
+  
+  // Lógica de búsqueda de hoja (Mantenemos tu código inteligente)
   if (!sheetUsu) {
     for (var si = 0; si < ss.getSheets().length; si++) {
       if (ss.getSheets()[si].getName().toLowerCase().indexOf("usuario") >= 0) {
@@ -393,11 +395,13 @@ function solicitarResetSenha(emailBuscado) {
       }
     }
   }
-  if (!sheetUsu) return responderPadrao(false, "Hoja Usuarios no encontrada.", null);
+  if (!sheetUsu) return responderPadrao(false, "Hoja 'Usuarios' no encontrada.", null);
 
   var data = sheetUsu.getDataRange().getValues();
   var header = data[0];
   var colEmail = -1;
+  
+  // Buscar columna de email
   for (var h = 0; h < header.length; h++) {
     var n = String(header[h] || '').trim().toLowerCase();
     if (n === 'email' || n === 'correo' || n.indexOf('email') >= 0 || n.indexOf('correo') >= 0) {
@@ -405,7 +409,8 @@ function solicitarResetSenha(emailBuscado) {
       break;
     }
   }
-  if (colEmail === -1) return responderPadrao(false, "Columna de correo no encontrada.", null);
+  
+  if (colEmail === -1) return responderPadrao(false, "Columna de correo electrónico no encontrada.", null);
 
   var existe = false;
   for (var i = 1; i < data.length; i++) {
@@ -414,25 +419,57 @@ function solicitarResetSenha(emailBuscado) {
       break;
     }
   }
-  if (!existe) return responderPadrao(false, "No hay ninguna cuenta con ese correo.", null);
+  
+  if (!existe) return responderPadrao(false, "No hay ninguna cuenta registrada con ese correo.", null);
 
+  // Generación de código de 6 dígitos
   var codigo = String(Math.floor(100000 + Math.random() * 900000));
   var ahora = new Date();
+  
+  // IMPORTANTE: Asegúrate de que la función getOrCreateResetSheet() exista en tu script
   var sheetReset = getOrCreateResetSheet();
   sheetReset.appendRow([emailNorm, codigo, ahora]);
 
   try {
     MailApp.sendEmail({
       to: emailNorm,
-      subject: "Gestión Duarte – Código para restablecer contraseña",
-      body: "Su código de verificación es: " + codigo + "\n\nVálido por " + RESET_CODE_VALID_MINUTES + " minutos.\n\nSi no solicitó este correo, ignore este mensaje."
+      subject: "Gestión Duarte – Código de Verificación",
+      htmlBody: "<h3>Restablecer Contraseña</h3>" +
+                "<p>Su código de verificación es: <b style='font-size: 20px; color: #2D6A4F;'>" + codigo + "</b></p>" +
+                "<p>Este código es válido por tiempo limitado.</p>" +
+                "<p>Si no solicitó este código, ignore este mensaje.</p>"
     });
   } catch (err) {
-    sheetReset.getRange(sheetReset.getLastRow(), 1, sheetReset.getLastRow(), 3).clearContent();
-    return responderPadrao(false, "No se pudo enviar el correo. Verifique la configuración del script.", null);
+    // Si falla el envío, eliminamos la fila para no dejar basura
+    if (sheetReset.getLastRow() > 0) {
+      sheetReset.deleteRow(sheetReset.getLastRow());
+    }
+    return responderPadrao(false, "Error al enviar el correo. Detalles: " + err.toString(), null);
   }
-  return responderPadrao(true, "Si el correo está registrado, recibirá un código por correo electrónico.", null);
+  
+  return responderPadrao(true, "Si el correo está registrado, recibirá un código de verificación.", null);
 }
+
+/** Verificación de Funciones Auxiliares */
+function getOrCreateResetSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var name = "Resets";
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.appendRow(["Email", "Codigo", "Fecha"]);
+  }
+  return sheet;
+}
+
+function responderPadrao(sucesso, mensagem, dados) {
+  return {
+    success: sucesso,
+    message: mensagem,
+    data: dados
+  };
+}
+
 
 /** Confirma restablecimiento: valida código y actualiza contraseña en Usuarios. */
 function confirmarResetSenha(emailBuscado, codigo, novaSenha) {
@@ -552,7 +589,7 @@ function loginDebug(emailBuscado) {
   return responderJSON(result);
 }
 
-// --- 3. SUA INTELIGÊNCIA DE NEGÓCIO (Original adaptada) ---
+// --- 3. INTELIGÊNCIA DE NEGÓCIO 
 
 function normalizarTexto(t) {
   if (!t) return "";
