@@ -2,11 +2,16 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
+import 'push_notification_service.dart';
+
+/// URL do Web App (Google Apps Script). Atualize após novo deployment.
 const String kScriptUrl = "https://script.google.com/macros/s/AKfycbxaMMdfTsEV_gUd0Bg2l5D666FqUVEn5wynNyT_Cdt_iY4mg0zxbtzfFVlAeb87IzfqsQ/exec";
 
 /// Paleta centralizada da identidade visual do app.
@@ -303,7 +308,11 @@ void _mostrarFeedback(BuildContext context, String texto, {bool sucesso = true})
   );
 }
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const GestaoDuarteApp());
 }
 
@@ -441,6 +450,8 @@ class _TelaLoginState extends State<TelaLogin> {
         usuario = Map<String, dynamic>.from(data['usuario'] as Map);
       }
       if (usuario != null && mounted) {
+        // Após validar o login
+        PushNotificationService.registrarDispositivo(email);
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(

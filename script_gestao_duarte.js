@@ -1,7 +1,120 @@
 /**
  * GESTÃO DUARTE - API UNIFICADA (FLUTTER + GOOGLE SHEETS)
- * Versão: 1.3 - Correção de Mapeamento de Colunas e Carimbo de Data
+ * Núcleo de API para o app Flutter integrado ao Google Sheets.
  */
+
+// --- FCM v1 (OAuth2 / Service Account) ---
+var FCM_PROJECT_ID = "project-manager-489800";
+var FCM_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@project-manager-489800.iam.gserviceaccount.com";
+// FCM_PRIVATE_KEY: configure em Propriedades do script (valor completo PEM, com \n preservados)
+
+// --- Fuso horário da planilha (Santo Domingo) ---
+var TIMEZONE_PLANILHA = "GMT-4";
+
+/** Retorna data/hora atual formatada no fuso da planilha (dd/MM/yyyy HH:mm:ss) para gravação. */
+function agoraFormatado() {
+  var agora = new Date();
+  return Utilities.formatDate(agora, TIMEZONE_PLANILHA, "dd/MM/yyyy HH:mm:ss");
+}
+
+/** Converte string "dd/MM/yyyy HH:mm:ss" (GMT-4) em Date. Se já for Date, retorna new Date(val). */
+function parseDataGMT4(val) {
+  if (!val) return null;
+  if (val instanceof Date) return new Date(val);
+  var s = String(val).trim();
+  var match = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})$/);
+  if (!match) return null;
+  var pad = function(x) { return ("0" + x).slice(-2); };
+  var iso = match[3] + "-" + pad(match[2]) + "-" + pad(match[1]) + "T" + pad(match[4]) + ":" + pad(match[5]) + ":" + pad(match[6]) + "-04:00";
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Gera access token OAuth2 via JWT (RS256) para FCM v1. */
+function getFCMAccessToken_() {
+  var key = PropertiesService.getScriptProperties().getProperty("FCM_PRIVATE_KEY");
+  if (!key) return null;
+  key = String(key).replace(/\\n/g, "\n");
+  var now = Math.floor(Date.now() / 1000);
+  var header = { alg: "RS256", typ: "JWT" };
+  var payload = {
+    iss: FCM_CLIENT_EMAIL,
+    sub: FCM_CLIENT_EMAIL,
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+    scope: "https://www.googleapis.com/auth/firebase.messaging"
+  };
+  var b64url = function(s) {
+    return Utilities.base64EncodeWebSafe(Utilities.newBlob(JSON.stringify(s)).getBytes())
+      .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  };
+  var toSign = b64url(header) + "." + b64url(payload);
+  var sig;
+  try {
+    sig = Utilities.computeRsaSha256Signature(toSign, key);
+  } catch (e) {
+    Logger.log("FCM JWT sign error: " + e.toString());
+    return null;
+  }
+  var jwt = toSign + "." + Utilities.base64EncodeWebSafe(sig).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  var res = UrlFetchApp.fetch("https://oauth2.googleapis.com/token", {
+    method: "post",
+    contentType: "application/x-www-form-urlencoded",
+    payload: "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=" + jwt,
+    muteHttpExceptions: true
+  });
+  var json = JSON.parse(res.getContentText());
+  return json.access_token || null;
+}
+
+/**
+ * Envia push notification via FCM HTTP v1.
+ * @param {string} tokenDestino - Token FCM do dispositivo
+ * @param {string} titulo - Título da notificação
+ * @param {string} mensagem - Corpo da mensagem
+ * @returns {boolean} true se enviado com sucesso
+ */
+function enviarPushV1(tokenDestino, titulo, mensagem) {
+  if (!tokenDestino || !tokenDestino.trim()) return false;
+  Logger.log("enviarPushV1: titulo='" + (titulo || "") + "', token prefix=" + (tokenDestino.substring(0, 5) + "..."));
+  var token = getFCMAccessToken_();
+  if (!token) {
+    Logger.log("enviarPushV1: sem access token. Configure FCM_PRIVATE_KEY nas Propriedades do script.");
+    return false;
+  }
+  var url = "https://fcm.googleapis.com/v1/projects/" + FCM_PROJECT_ID + "/messages:send";
+  var message = {
+    token: tokenDestino.trim(),
+    notification: {
+      title: titulo || "Gestión Duarte",
+      body: mensagem || "Nueva actualización"
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channel_id: "high_importance_channel",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        notification_priority: "PRIORITY_MAX"
+      }
+    }
+  };
+  var body = { message: message };
+  try {
+    var res = UrlFetchApp.fetch(url, {
+      method: "post",
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      payload: JSON.stringify(body),
+      muteHttpExceptions: true
+    });
+    var ok = res.getResponseCode() >= 200 && res.getResponseCode() < 300;
+    if (!ok) Logger.log("enviarPushV1: HTTP " + res.getResponseCode() + " - " + res.getContentText());
+    return ok;
+  } catch (e) {
+    Logger.log("enviarPushV1 erro: " + e.toString());
+    return false;
+  }
+}
 
 // --- CONSTANTES ABA "Respuestas del Form" ---
 var HEADER_ROW = 6;
@@ -137,6 +250,9 @@ function doGet(e) {
           if (act === 'alterarSenha') {
             return alterarSenha(decoded.email || '', decoded.senhaAtual || '', decoded.novaSenha || '');
           }
+          if (act === 'atualizarToken') {
+            return atualizarTokenFCM((decoded.email || '').toString().trim().toLowerCase(), (decoded.token || '').toString().trim());
+          }
         } catch (err) {}
       }
     }
@@ -205,9 +321,24 @@ function doGet(e) {
         var decoded = Utilities.newBlob(Utilities.base64Decode(payload)).getDataAsString();
         var data = JSON.parse(decoded);
         var dados = data.dados || {};
-        if (action == 'salvarDemanda') return salvarDemanda(dados);
-        if (action == 'reprogramarDemanda') return reprogramarDemanda(dados);
-        if (action == 'crearDemandaCancelada') return crearDemandaCancelada(dados);
+        var res;
+        if (action == 'salvarDemanda') res = salvarDemanda(dados);
+        else if (action == 'reprogramarDemanda') res = reprogramarDemanda(dados);
+        else res = crearDemandaCancelada(dados);
+        if ((action == 'salvarDemanda' || action == 'reprogramarDemanda') && res && typeof res.getContentText === 'function') {
+          try {
+            var json = JSON.parse(res.getContentText());
+            if (json && json.success === true) {
+              var setor = String(dados.sector_destino || dados.sectorDestino || dados['Sector de Destino'] || dados['sector'] || '').trim();
+              try {
+                processarAlertasPush(setor, action == 'salvarDemanda' ? "Nueva demanda" : "Demanda reprogramada", "Se ha registrado una nueva demanda en su sector. Por favor, acceda a la app para verificar los detalles.");
+              } catch (pushErr) {
+                Logger.log("Push de alerta falhou; registro na planilha foi mantido: " + pushErr.toString());
+              }
+            }
+          } catch (_) {}
+        }
+        return res;
       } catch (err) {
         return responderPadrao(false, "Payload inválido: " + err.toString(), null);
       }
@@ -232,11 +363,39 @@ function doPost(e) {
     var action = data.action || (e && e.parameter ? e.parameter.action : null);
     if (action === 'crearDemanda' || action === 'salvarDemanda') {
       var dados = data.dados || {};
-      return salvarDemanda(dados);
+      var res = salvarDemanda(dados);
+      if (res && typeof res.getContentText === 'function') {
+        try {
+          var json = JSON.parse(res.getContentText());
+          if (json && json.success === true) {
+            var setor = String(dados.sector_destino || dados.sectorDestino || dados['Sector de Destino'] || dados['sector'] || '').trim();
+            try {
+              processarAlertasPush(setor, "Nueva demanda", "Se ha registrado una nueva demanda en su sector. Por favor, acceda a la app para verificar los detalles.");
+            } catch (pushErr) {
+              Logger.log("Push de alerta (nova demanda) falhou; registro na planilha foi mantido: " + pushErr.toString());
+            }
+          }
+        } catch (_) {}
+      }
+      return res;
     }
     if (action === 'crearDemandaReprogramada' || action === 'reprogramarDemanda') {
       var dados = data.dados || {};
-      return reprogramarDemanda(dados);
+      var res = reprogramarDemanda(dados);
+      if (res && typeof res.getContentText === 'function') {
+        try {
+          var json = JSON.parse(res.getContentText());
+          if (json && json.success === true) {
+            var setor = String(dados.sector_destino || dados.sectorDestino || dados['Sector de Destino'] || dados['sector'] || '').trim();
+            try {
+              processarAlertasPush(setor, "Demanda reprogramada", "Se ha registrado una nueva demanda en su sector. Por favor, acceda a la app para verificar los detalles.");
+            } catch (pushErr) {
+              Logger.log("Push (reprogramar) falhou; registro na planilha foi mantido: " + pushErr.toString());
+            }
+          }
+        } catch (_) {}
+      }
+      return res;
     }
     if (action === 'crearDemandaCancelada') {
       var dados = data.dados || {};
@@ -249,7 +408,64 @@ function doPost(e) {
 }
 
 // --- 2. LÓGICA DE USUÁRIO E ACESSO ---
-// Aba "Usuarios": ID | Nombre | senha | email | Area | Perfil
+// Aba "Usuarios": ID | Nombre | senha | email | Area | Perfil | ... | Token_FCM
+
+/** Salva/atualiza o token FCM em FCM_Tokens e na coluna Token_FCM da aba Usuarios quando existir. */
+function atualizarTokenFCM(email, token) {
+  if (!email || !token) {
+    return responderPadrao(false, "Email y token son obligatorios.", null);
+  }
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetUsu = ss.getSheetByName("Usuarios") || ss.getSheetByName("Usuários");
+    if (sheetUsu) {
+      var dataUsu = sheetUsu.getDataRange().getValues();
+      var headerUsu = (dataUsu[0] || []).map(function(h) { return String(h || "").trim().toLowerCase(); });
+      var colEmail = -1;
+      for (var u = 0; u < headerUsu.length; u++) {
+        if (headerUsu[u].indexOf("email") >= 0 || headerUsu[u].indexOf("correo") >= 0) { colEmail = u; break; }
+      }
+      var colToken = -1;
+      for (var u = 0; u < headerUsu.length; u++) {
+        if (headerUsu[u].indexOf("token") >= 0 && headerUsu[u].indexOf("fcm") >= 0) { colToken = u; break; }
+        if (headerUsu[u] === "token_fcm") { colToken = u; break; }
+      }
+      if (colToken < 0) for (var u = 0; u < headerUsu.length; u++) { if (headerUsu[u] === "token") { colToken = u; break; } }
+      if (colEmail >= 0 && colToken >= 0) {
+        var emailNorm = String(email).trim().toLowerCase();
+        for (var r = 1; r < dataUsu.length; r++) {
+          if (String((dataUsu[r][colEmail] || "")).trim().toLowerCase() === emailNorm) {
+            sheetUsu.getRange(r + 1, colToken + 1).setValue(token);
+            break;
+          }
+        }
+      }
+    }
+    var sheet = ss.getSheetByName("FCM_Tokens");
+    if (!sheet) {
+      sheet = ss.insertSheet("FCM_Tokens");
+      sheet.appendRow(["email", "token", "ultimaAtualizacao"]);
+    }
+    var data = sheet.getDataRange().getValues();
+    var header = (data[0] || []).map(function(h) { return String(h || "").trim().toLowerCase(); });
+    var colEmail = header.indexOf("email") >= 0 ? header.indexOf("email") : 0;
+    var colToken = header.indexOf("token") >= 0 ? header.indexOf("token") : 1;
+    var emailNorm = String(email).trim().toLowerCase();
+    for (var r = 1; r < data.length; r++) {
+      if (String((data[r][colEmail] || "")).trim().toLowerCase() === emailNorm) {
+        sheet.getRange(r + 1, colToken + 1).setValue(token);
+        if (header.indexOf("ultimaatualizacao") >= 0) {
+          sheet.getRange(r + 1, header.indexOf("ultimaatualizacao") + 1).setValue(agoraFormatado());
+        }
+        return responderPadrao(true, "Token actualizado.", null);
+      }
+    }
+    sheet.appendRow([emailNorm, token, agoraFormatado()]);
+    return responderPadrao(true, "Token registrado.", null);
+  } catch (err) {
+    return responderPadrao(false, err.toString(), null);
+  }
+}
 
 function loginUsuario(emailBuscado, senhaRecebida) {
   var emailNorm = emailBuscado ? String(emailBuscado).trim().toLowerCase() : '';
@@ -424,11 +640,10 @@ function solicitarResetSenha(emailBuscado) {
 
   // Generación de código de 6 dígitos
   var codigo = String(Math.floor(100000 + Math.random() * 900000));
-  var ahora = new Date();
-  
+
   // IMPORTANTE: Asegúrate de que la función getOrCreateResetSheet() exista en tu script
   var sheetReset = getOrCreateResetSheet();
-  sheetReset.appendRow([emailNorm, codigo, ahora]);
+  sheetReset.appendRow([emailNorm, codigo, agoraFormatado()]);
 
   try {
     MailApp.sendEmail({
@@ -492,7 +707,8 @@ function confirmarResetSenha(emailBuscado, codigo, novaSenha) {
     if (String(dataReset[i][0] || '').toLowerCase().trim() !== emailNorm) continue;
     if (String(dataReset[i][colCodigo] || '').trim() !== cod) continue;
     var fecha = dataReset[i][colFecha];
-    if (fecha && (ahora - new Date(fecha)) > limiteMs) continue;
+    var fechaDate = parseDataGMT4(fecha);
+    if (fecha && fechaDate && (ahora - fechaDate) > limiteMs) continue;
     rowValida = i + 1;
     break;
   }
@@ -803,14 +1019,14 @@ function _getDemandasArray(sector, email, perfil, responsable) {
       solicitanteEmail: (colEmail >= 0 ? data[i][colEmail] : data[i][colSolicitante] || '').toString().trim() || '',
       setor: (data[i][colSector] || '').toString(),
       status: (colStatus >= 0 ? data[i][colStatus] : 'Pendiente').toString(),
-      fechaNecesaria: fechaVal ? Utilities.formatDate(new Date(fechaVal), Session.getScriptTimeZone(), 'dd/MM/yyyy') : '',
+      fechaNecesaria: fechaVal ? Utilities.formatDate(new Date(fechaVal), TIMEZONE_PLANILHA, 'dd/MM/yyyy') : '',
       horaInicio: horaVal ? String(horaVal).trim() : '',
       duracion: (colDur >= 0 ? data[i][colDur] : '').toString(),
       prioridad: (colResp >= 0 && data[i][colResp] ? 1 : 0),
       solicitante: (colSolicitante >= 0 ? data[i][colSolicitante] : data[i][colSector] || '').toString(),
       Email_Solicitante: (colEmail >= 0 ? data[i][colEmail] : data[i][colSolicitante] || '').toString().trim() || '',
       sector: (data[i][colSector] || '').toString(),
-      data: fechaVal ? Utilities.formatDate(new Date(fechaVal), Session.getScriptTimeZone(), 'dd/MM/yyyy') : '',
+      data: fechaVal ? Utilities.formatDate(new Date(fechaVal), TIMEZONE_PLANILHA, 'dd/MM/yyyy') : '',
       responsavel: (colResp >= 0 ? data[i][colResp] : '').toString(),
       requerimiento: (colReq >= 0 ? data[i][colReq] : '').toString()
     });
@@ -908,7 +1124,7 @@ function getDemandasAgenda(sector, email, perfil, responsable) {
       var dataObj = (d instanceof Date) ? d : new Date(d);
       if (isNaN(dataObj.getTime())) continue;
     } catch (e) { continue; }
-    var dataStr = Utilities.formatDate(new Date(d), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+    var dataStr = Utilities.formatDate(new Date(d), TIMEZONE_PLANILHA, 'dd/MM/yyyy');
     var horaStr = data[i][colHora] ? String(data[i][colHora]).substring(0, 5) : '';
     out.push({
       titulo: (data[i][colTema] || '').toString(),
@@ -989,7 +1205,7 @@ function getOcupacaoParaSlot(dataStr, horaStr, sector) {
     if (st === 'cancelada' || st === 'reprogramada') continue;
     var d = r.data[i][colData];
     if (!d) continue;
-    var rowDataStr = Utilities.formatDate(new Date(d), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+    var rowDataStr = Utilities.formatDate(new Date(d), TIMEZONE_PLANILHA, 'dd/MM/yyyy');
     var rowHoraStr = r.data[i][colHora] ? String(r.data[i][colHora]).trim() : '';
     if (rowHoraStr.length >= 5) rowHoraStr = rowHoraStr.substring(0, 5);
     else if (rowHoraStr.length === 4 && rowHoraStr.indexOf(':') === 1) rowHoraStr = '0' + rowHoraStr;
@@ -1015,7 +1231,7 @@ function salvarDemanda(dados) {
         var parts = fn.split('/');
         if (parts.length === 3) {
           var d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-          if (!isNaN(d.getTime())) dataStr = Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+          if (!isNaN(d.getTime())) dataStr = Utilities.formatDate(d, TIMEZONE_PLANILHA, 'dd/MM/yyyy');
         }
       }
     } catch (_) {}
@@ -1036,7 +1252,7 @@ function salvarDemanda(dados) {
       var header = String(headers[i] || '').toLowerCase().trim();
 
       if (i === 0 || header.indexOf('carimbo') >= 0) {
-        row.push(new Date());
+        row.push(agoraFormatado());
         continue;
       }
 
@@ -1139,14 +1355,14 @@ function verificarDisponibilidad(dataHora) {
     if (colHora < 0) colHora = 12;
     if (colStatus < 0) colStatus = 16;
     var target = dataHora ? new Date(dataHora) : new Date();
-    var targetDataStr = Utilities.formatDate(target, Session.getScriptTimeZone(), 'dd/MM/yyyy');
-    var targetHoraStr = Utilities.formatDate(target, Session.getScriptTimeZone(), 'HH:mm');
+    var targetDataStr = Utilities.formatDate(target, TIMEZONE_PLANILHA, 'dd/MM/yyyy');
+    var targetHoraStr = Utilities.formatDate(target, TIMEZONE_PLANILHA, 'HH:mm');
     for (var i = 0; i < r.data.length; i++) {
       var st = String(r.data[i][colStatus] || '').toLowerCase();
       if (st === 'cancelada') continue;
       var d = r.data[i][colData];
       if (!d) continue;
-      var rowDataStr = Utilities.formatDate(new Date(d), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+      var rowDataStr = Utilities.formatDate(new Date(d), TIMEZONE_PLANILHA, 'dd/MM/yyyy');
       var rowHoraStr = r.data[i][colHora] ? String(r.data[i][colHora]).substring(0, 5) : '';
       if (rowDataStr === targetDataStr && rowHoraStr === targetHoraStr) count++;
     }
@@ -1179,7 +1395,7 @@ function getOcupacaoBrigadas(sector) {
       if (st === 'cancelada') continue;
       var d = r.data[i][colData];
       if (!d) continue;
-      var dataStr = d ? Utilities.formatDate(new Date(d), Session.getScriptTimeZone(), 'dd/MM/yyyy') : '';
+      var dataStr = d ? Utilities.formatDate(new Date(d), TIMEZONE_PLANILHA, 'dd/MM/yyyy') : '';
       var horaStr = r.data[i][colHora] ? String(r.data[i][colHora]).substring(0, 5) : '';
       var key = dataStr + '|' + horaStr;
       ocupacoes[key] = (ocupacoes[key] || 0) + 1;
@@ -1198,4 +1414,257 @@ function responderJSON(objeto) {
 function responderPadrao(success, message, data) {
   var out = { success: !!success, message: (message || '').toString(), data: data };
   return responderJSON(out);
+}
+
+
+/**
+ * GESTÃO DUARTE - SISTEMA DE RELATÓRIOS AUTOMÁTICOS
+ * Regras: 
+ * - Ejecutor: Apenas demandas "Programado" onde é o Responsável.
+ * - Coordinador: Demandas destinadas ao seu Sector (Coluna C).
+ * - Gerente: Demandas destinadas a qualquer Sector da sua Gerência.
+ * - Director: Todas as demandas.
+ */
+/**
+ * SISTEMA DE RELATÓRIOS - GESTÃO DUARTE
+ * Gera e envia relatórios de demandas pendentes por e-mail.
+ */
+
+function processarRelatoriosAgendados() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetUsuarios = ss.getSheetByName("Usuarios") || ss.getSheetByName("Usuários");
+  if (!sheetUsuarios) return;
+
+  var r = getDemandasSheet();
+  if (!r.data || !r.data.length) {
+    Logger.log("Nenhuma demanda encontrada.");
+    return;
+  }
+
+  var usersData = sheetUsuarios.getRange(1, 1, sheetUsuarios.getLastRow(), sheetUsuarios.getLastColumn()).getValues();
+  var cabecalhosUsu = (usersData[0] || []).map(function(h) { return String(h || "").trim(); });
+  // Mapeamento dinâmico de colunas da aba Usuarios (equivalente a buscarIndice)
+  var iNombre = indiceColunaUsuarios(cabecalhosUsu, ["Nombre", "Nome"]);
+  var iEmail = indiceColunaUsuarios(cabecalhosUsu, ["Email", "Correo", "E-mail"]);
+  var iGerencia = indiceColunaUsuarios(cabecalhosUsu, ["Gerencia", "Área", "Area"]);
+  var iSector = indiceColunaUsuarios(cabecalhosUsu, ["Sector", "Setor"]);
+  var iPerfil = indiceColunaUsuarios(cabecalhosUsu, ["Perfil", "Función", "Funcao"]);
+  var iInforme = indiceColunaUsuarios(cabecalhosUsu, ["Informe de Demandas", "Notificacion de demanda", "Quer informe"]);
+  var iFrequencia = indiceColunaUsuarios(cabecalhosUsu, ["Frequencia de emails", "Frequencia", "Frecuencia"]);
+
+  var m = r.headerMap;
+  var colSectorDestino = getCol(m, ["sector_destino"]);
+  var colResponsable = getCol(m, ["responsable"]);
+  var colStatus = getCol(m, ["status"]);
+
+  // Dia da semana em Santo Domingo (GMT-4) para envio de relatórios
+  var u = parseInt(Utilities.formatDate(new Date(), TIMEZONE_PLANILHA, "u"), 10);
+  var diaDaSemana = (u === 7) ? 0 : u; // u: 1=seg..7=dom; getDay(): 0=dom..6=sáb (1 = segunda)
+
+  // 1. MAPEAMENTO DE GERÊNCIA (Cruza Setores com suas Gerências)
+  var mapaGerenciaSetores = {};
+  for (var k = 1; k < usersData.length; k++) {
+    var g = iGerencia >= 0 ? String(usersData[k][iGerencia] || '').trim() : '';
+    var s = iSector >= 0 ? String(usersData[k][iSector] || '').trim() : '';
+    if (g && s) {
+      mapaGerenciaSetores[g] = mapaGerenciaSetores[g] || [];
+      if (mapaGerenciaSetores[g].indexOf(s) === -1) mapaGerenciaSetores[g].push(s);
+    }
+  }
+
+  // 2. FILTRAGEM E ENVIO POR USUÁRIO (bloco independente - relatórios por e-mail)
+  for (var i = 1; i < usersData.length; i++) {
+    var row = usersData[i];
+    if ((iNombre < 0 || !row[iNombre]) && (iEmail < 0 || !row[iEmail])) continue;
+
+    var user = {
+      nome: iNombre >= 0 ? String(row[iNombre] || "").trim() : "",
+      email: iEmail >= 0 ? String(row[iEmail] || "").trim() : "",
+      gerencia: iGerencia >= 0 ? String(row[iGerencia] || "").trim() : "",
+      sector: iSector >= 0 ? String(row[iSector] || "").trim() : "",
+      perfil: iPerfil >= 0 ? String(row[iPerfil] || "").trim() : "",
+      querInforme: iInforme >= 0 ? row[iInforme] : null,
+      frequencia: iFrequencia >= 0 ? String(row[iFrequencia] || "").trim() : ""
+    };
+
+    // Filtros de Consentimento e Frequência (Diário/Diario = todo dia; Semanal = segunda, dia 1)
+    if (user.querInforme !== true && String(user.querInforme || "").trim().toUpperCase() !== "TRUE" && user.querInforme !== "Sim" && user.querInforme !== "Si") continue;
+    var freqNorm = user.frequencia.toLowerCase();
+    var deveEnviar = (freqNorm === "diario" || freqNorm === "diário") || (freqNorm === "semanal" && diaDaSemana === 1);
+    if (!deveEnviar) continue;
+
+    // Filtro Lógico de Demandas (mapeamento dinâmico por getCol)
+    var demandasFiltradas = r.data.filter(function(d) {
+      var dSectorDestino = colSectorDestino >= 0 ? String(d[colSectorDestino] || '').trim() : '';
+      var dResponsable = colResponsable >= 0 ? String(d[colResponsable] || '').trim() : '';
+      var dEstatus = colStatus >= 0 ? String(d[colStatus] || '').trim() : '';
+
+      // REGRA GLOBAL: Nunca enviar se o status for "Resuelto"
+      if (dEstatus.toLowerCase() === "resuelto") return false;
+
+      if (user.perfil === "Ejecutor") {
+        return dEstatus === "Programado" && dResponsable === user.nome;
+      }
+      if (user.perfil === "Coordinador") {
+        return dSectorDestino === user.sector;
+      }
+      if (user.perfil === "Gerente") {
+        var setoresAlvo = mapaGerenciaSetores[user.gerencia] || [];
+        return setoresAlvo.indexOf(dSectorDestino) !== -1;
+      }
+      if (user.perfil === "Director") {
+        return true;
+      }
+      return false;
+    });
+
+    if (demandasFiltradas && demandasFiltradas.length > 0) {
+      try {
+        enviarEmailRelatorio(user.email, user.nome, demandasFiltradas, r.headerMap);
+      } catch (e) {
+        Logger.log("Erro ao enviar relatório por e-mail (não interrompe o sistema): " + e.toString());
+      }
+    }
+  }
+}
+
+/** Escapa HTML para evitar injeção em células do relatório. */
+function escapeHtmlRelatorio(str) {
+  if (str == null || str === undefined) return '';
+  var s = String(str);
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Função de Envio: Gera Tabela HTML com colunas mapeadas dinamicamente via headerMap.
+ * Se headerMap não for passado, usa índices padrão (compatibilidade).
+ */
+function enviarEmailRelatorio(destinatario, nome, lista, headerMap) {
+  if (!lista || !lista.length) return;
+
+  var m = headerMap || {};
+  var colTipo = getCol(m, ["tema", "tipo"]);
+  var colSectorDestino = getCol(m, ["sector_destino"]);
+  var colSolicitante = getCol(m, ["solicitante"]);
+  var colLocal = getCol(m, ["local"]);
+  var colRequerimiento = getCol(m, ["requerimiento"]);
+  var colFecha = getCol(m, ["fecha_necesaria"]);
+
+  var html = "<h3 style='color: #1B4332; font-family: Arial;'>Resumen de Demandas Pendientes - Gestión Duarte</h3>" +
+             "<p style='font-family: Arial;'>Hola <b>" + escapeHtmlRelatorio(nome) + "</b>, estas son las demandas que requieren atención:</p>" +
+             "<table border='1' style='border-collapse: collapse; width: 100%; font-family: Arial; font-size: 11px;'>" +
+             "<tr style='background-color: #2D6A4F; color: white;'>" +
+             "<th>Tipo</th><th>Sector Destino</th><th>Solicitante</th><th>Local</th><th>Requerimiento</th><th>Fecha Nec.</th>" +
+             "</tr>";
+
+  for (var i = 0; i < lista.length; i++) {
+    var d = lista[i];
+    var valTipo = colTipo >= 0 ? d[colTipo] : d[1];
+    var valSector = colSectorDestino >= 0 ? d[colSectorDestino] : d[2];
+    var valSolicitante = colSolicitante >= 0 ? d[colSolicitante] : d[4];
+    var valLocal = colLocal >= 0 ? d[colLocal] : d[6];
+    var valReq = colRequerimiento >= 0 ? d[colRequerimiento] : d[5];
+    var dataF = "";
+    if (colFecha >= 0 && d[colFecha]) {
+      dataF = (d[colFecha] instanceof Date) ? Utilities.formatDate(d[colFecha], TIMEZONE_PLANILHA, "dd/MM/yyyy") : String(d[colFecha]);
+    } else if (d[11] !== undefined) {
+      dataF = (d[11] instanceof Date) ? Utilities.formatDate(d[11], TIMEZONE_PLANILHA, "dd/MM/yyyy") : String(d[11]);
+    }
+    html += "<tr>" +
+            "<td style='padding: 5px;'>" + escapeHtmlRelatorio(valTipo) + "</td>" +
+            "<td style='padding: 5px;'>" + escapeHtmlRelatorio(valSector) + "</td>" +
+            "<td style='padding: 5px;'>" + escapeHtmlRelatorio(valSolicitante) + "</td>" +
+            "<td style='padding: 5px;'>" + escapeHtmlRelatorio(valLocal) + "</td>" +
+            "<td style='padding: 5px;'>" + escapeHtmlRelatorio(valReq) + "</td>" +
+            "<td style='padding: 5px;'>" + escapeHtmlRelatorio(dataF) + "</td>" +
+            "</tr>";
+  }
+
+  html += "</table><p style='font-size: 10px; color: #666;'>Este es un informe automático de Gestión Duarte.</p>";
+
+  try {
+    MailApp.sendEmail({
+      to: destinatario,
+      subject: "Informe de Demandas Pendientes - " + nome,
+      htmlBody: html
+    });
+  } catch (e) {
+    Logger.log("Erro ao enviar e-mail: " + e.toString());
+  }
+}
+
+// --- PUSH NOTIFICATIONS (FCM v1) - processo independente dos relatórios por e-mail ---
+
+/** Remove acentos e converte para lowercase para comparação insensível. */
+function normalizar(str) {
+  if (str == null || str === undefined) return "";
+  var s = String(str).trim().toLowerCase();
+  var mapa = { "á": "a", "à": "a", "ã": "a", "â": "a", "é": "e", "ê": "e", "í": "i", "ó": "o", "ô": "o", "õ": "o", "ú": "u", "ü": "u", "ñ": "n", "ç": "c" };
+  for (var k in mapa) s = s.replace(new RegExp(k, "g"), mapa[k]);
+  return s.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Localiza índice de coluna na aba Usuarios por nome (case-insensitive).
+ * Usa cabecalhos.indexOf + fallback por nome em minúsculas.
+ */
+function indiceColunaUsuarios(cabecalhos, nomes) {
+  if (!cabecalhos || !nomes) return -1;
+  var h = cabecalhos.map(function(x) { return String(x || "").trim(); });
+  for (var a = 0; a < nomes.length; a++) {
+    var n = String(nomes[a]).trim();
+    var i = h.indexOf(n);
+    if (i >= 0) return i;
+    for (var j = 0; j < h.length; j++) {
+      if (String(h[j]).toLowerCase() === n.toLowerCase()) return j;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Processa alertas push para Coordenadores. Usa índices dinâmicos.
+ * Chame via trigger ou manualmente. Independente de processarRelatoriosAgendados.
+ * @param {string} sectorDestino - Setor alvo (opcional; vazio = todos)
+ * @param {string} titulo - Título da notificação
+ * @param {string} mensagem - Corpo da mensagem
+ */
+function processarAlertasPush(sectorDestino, titulo, mensagem) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetUsu = ss.getSheetByName("Usuarios") || ss.getSheetByName("Usuários");
+  if (!sheetUsu) return;
+  var data = sheetUsu.getRange(1, 1, sheetUsu.getLastRow(), sheetUsu.getLastColumn()).getValues();
+  var cabecalhos = (data[0] || []).map(function(x) { return String(x || "").trim(); });
+  var iNombre = indiceColunaUsuarios(cabecalhos, ["Nombre", "Nome"]);
+  var iSector = indiceColunaUsuarios(cabecalhos, ["Sector", "Setor"]);
+  var iPerfil = indiceColunaUsuarios(cabecalhos, ["Perfil", "Función", "Funcao"]);
+  var iNotificacion = indiceColunaUsuarios(cabecalhos, ["Notificacion de demanda", "Informe de Demandas", "Quer informe"]);
+  var iToken = indiceColunaUsuarios(cabecalhos, ["Token_FCM", "Token", "token fcm"]);
+  if (iToken < 0) return;
+  var sectorNorm = normalizar(sectorDestino);
+  if (!sectorNorm) {
+    Logger.log("sectorDestino vazio ou undefined - buscando coordenadores de TODOS os setores (teste).");
+  } else {
+    Logger.log("Buscando coordenadores para o setor: '" + sectorDestino + "' (normalizado: '" + sectorNorm + "')");
+  }
+  for (var r = 1; r < data.length; r++) {
+    var userName = iNombre >= 0 ? String(data[r][iNombre] || "").trim() : ("linha " + (r + 1));
+    var userPerfilNorm = normalizar(iPerfil >= 0 ? data[r][iPerfil] : "");
+    if (userPerfilNorm.indexOf("coordinador") < 0 && userPerfilNorm.indexOf("coordenador") < 0) continue;
+    if (iNotificacion >= 0) {
+      var notifAtiva = data[r][iNotificacion];
+      var notifStr = String(notifAtiva || "").trim().toUpperCase();
+      if (notifStr !== "TRUE" && notifStr !== "SIM" && notifStr !== "SI" && notifStr !== "1" && notifAtiva !== true) {
+        Logger.log("Usuario '" + userName + "' encontrado, mas Notificacion de demanda é [" + (notifAtiva === true ? "true" : notifStr || "(vazio)") + "], ignorando.");
+        continue;
+      }
+    }
+    var userSectorNorm = normalizar(iSector >= 0 ? data[r][iSector] : "");
+    if (sectorNorm && userSectorNorm !== sectorNorm) continue;
+    var token = String(data[r][iToken] || "").trim();
+    if (token) {
+      Logger.log("Coordenador '" + userName + "' (linha " + (r + 1) + ", sector normalizado: '" + userSectorNorm + "'). Tentando enviar push para o token: " + (token.substring(0, 5) + "..."));
+      enviarPushV1(token, titulo || "Gestión Duarte", mensagem || "Nueva actualización");
+    }
+  }
 }
